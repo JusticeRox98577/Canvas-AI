@@ -18,4 +18,8 @@ def get_provider(config: Config, provider: str | None = None) -> LLMProvider:
         from canvas_ai.llm.anthropic import AnthropicProvider
 
         return AnthropicProvider(config)
+    if name in {"claude_code", "claude-code", "claudecode", "subscription"}:
+        from canvas_ai.llm.claude_code import ClaudeCodeProvider
+
+        return ClaudeCodeProvider(config)
     raise ValueError(f"Unknown provider: {name!r}")

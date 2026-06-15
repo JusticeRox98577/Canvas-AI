@@ -21,6 +21,20 @@ Many K-12 districts disable personal access tokens. Canvas-AI handles both cases
 - **`AUTH_MODE=token`:** use a personal access token (Canvas → Account →
   Settings → **+ New Access Token**) if your school allows them.
 
+### Drafting with Claude (subscription vs. API)
+
+Drafting/explaining can use a different (better) model than chat via
+`DRAFT_PROVIDER`:
+
+- `ollama` — local, free (default).
+- `claude_code` — uses your **Claude Pro/Max subscription** through the Claude
+  Code CLI (counts against your chat plan, *not* API credits). Install it and
+  log in once: `curl -fsSL https://claude.ai/install.sh | bash` then `claude`.
+- `anthropic` — the Anthropic **API** (separate pay-as-you-go credits + a
+  `ANTHROPIC_API_KEY`).
+
+Chat/reads stay on `LLM_PROVIDER` (default local) so tool-use stays free.
+
 Browser mode needs the browser extra:
 ```bash
 pip install -e ".[browser]" && playwright install chromium
