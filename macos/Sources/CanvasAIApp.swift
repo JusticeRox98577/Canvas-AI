@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 @main
 struct CanvasAIApp: App {
@@ -29,6 +30,14 @@ final class Backend: ObservableObject {
     @Published var authName: String?
 
     private var process: Process?
+
+    init() {
+        // Stop the backend we launched when the app quits, so it doesn't linger
+        // with stale code across restarts.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+        ) { [weak self] _ in self?.shutdown() }
+    }
 
     func boot(repoPath: String) async {
         phase = .starting
