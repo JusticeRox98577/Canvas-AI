@@ -60,6 +60,7 @@ function selectCourse(c, li) {
   loadModules();
   const active = document.querySelector(".tabs button.active").dataset.tab;
   if (active === "discussions") loadDiscussions();
+  if (active === "dashboard") loadDashboard();
 }
 
 // ---- modules ----
@@ -146,19 +147,44 @@ function confirmSubmit(aid, name, ta) {
 }
 
 // ---- dashboard ----
+let dashAll = false;
+
+function dashHeader(scoped) {
+  const note = scoped ? `Showing: ${activeCourse.name}` : "Showing: all courses";
+  return `<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span class="muted">${escapeHtml(note)}</span>
+      <label class="muted" style="cursor:pointer">
+        <input type="checkbox" id="dashall" ${dashAll ? "checked" : ""}/> All courses
+      </label>
+    </div>`;
+}
+function bindDash() {
+  const cb = $("#dashall");
+  if (cb) cb.onchange = (e) => { dashAll = e.target.checked; loadDashboard(); };
+}
+
 async function loadDashboard() {
   const box = $("#tab-dashboard");
-  box.innerHTML = `<p class="muted">Loading due dates across your courses…</p>`;
+  const scoped = activeCourse && !dashAll;
+  box.innerHTML = dashHeader(scoped) + `<p class="muted">Loading due dates…</p>`;
+  bindDash();
   try {
-    const rows = await api("/api/dashboard");
-    if (!rows.length) { box.innerHTML = `<p class="muted">Nothing with a due date.</p>`; return; }
-    let html = "<table><thead><tr><th>Due</th><th>Assignment</th><th>Course</th><th>Status</th></tr></thead><tbody>";
-    rows.forEach((r) => {
-      html += `<tr><td>${fmt(r.due_at)}</td><td>${r.name}</td><td class="muted">${r.course || ""}</td>` +
-        `<td><span class="pill ${r.submitted ? "done" : "todo"}">${r.submitted ? "submitted" : "to do"}</span></td></tr>`;
-    });
-    box.innerHTML = html + "</tbody></table>";
-  } catch (e) { box.innerHTML = `<p class="muted">${e.message}</p>`; }
+    const q = scoped ? `?course_id=${activeCourse.id}` : "";
+    const rows = await api("/api/dashboard" + q);
+    let body;
+    if (!rows.length) {
+      body = `<p class="muted">Nothing with a due date.</p>`;
+    } else {
+      body = "<table><thead><tr><th>Due</th><th>Assignment</th><th>Course</th><th>Status</th></tr></thead><tbody>";
+      rows.forEach((r) => {
+        body += `<tr><td>${fmt(r.due_at)}</td><td>${escapeHtml(r.name)}</td><td class="muted">${escapeHtml(r.course || "")}</td>` +
+          `<td><span class="pill ${r.submitted ? "done" : "todo"}">${r.submitted ? "submitted" : "to do"}</span></td></tr>`;
+      });
+      body += "</tbody></table>";
+    }
+    box.innerHTML = dashHeader(scoped) + body;
+    bindDash();
+  } catch (e) { box.innerHTML = dashHeader(scoped) + `<p class="muted">${escapeHtml(e.message)}</p>`; bindDash(); }
 }
 
 // ---- discussions ----

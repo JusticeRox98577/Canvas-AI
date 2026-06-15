@@ -107,12 +107,14 @@ def api_assignment(course_id: int, assignment_id: int) -> dict:
 
 
 @app.get("/api/dashboard")
-def api_dashboard() -> list[dict]:
-    """Upcoming assignments with due dates across all courses, soonest first."""
+def api_dashboard(course_id: int | None = None) -> list[dict]:
+    """Assignments with due dates, soonest first. Filtered to one course if given."""
     def go():
         rows: list[dict] = []
         with client() as c:
             for course in courses.list_courses(c):
+                if course_id and course["id"] != course_id:
+                    continue
                 for a in assignments.list_assignments(c, course["id"]):
                     if a.get("due_at"):
                         sub = a.get("submission") or {}
