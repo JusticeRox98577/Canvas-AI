@@ -44,6 +44,14 @@ final class Backend: ObservableObject {
         p.executableURL = URL(fileURLWithPath: py)
         p.arguments = ["-m", "uvicorn", "canvas_ai.web.app:app",
                        "--host", "127.0.0.1", "--port", "8765", "--log-level", "warning"]
+        // Send backend output to a real file: a GUI-spawned process has no usable
+        // stdout, and inheriting it can cause EIO write errors in the backend.
+        let logPath = repoPath + "/backend.log"
+        FileManager.default.createFile(atPath: logPath, contents: nil)
+        if let fh = FileHandle(forWritingAtPath: logPath) {
+            p.standardOutput = fh
+            p.standardError = fh
+        }
         do { try p.run() } catch {
             phase = .failed("Couldn't launch backend: \(error.localizedDescription)")
             return

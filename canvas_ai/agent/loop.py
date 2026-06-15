@@ -15,6 +15,16 @@ from canvas_ai.llm.base import LLMProvider, ToolCall
 console = Console()
 
 
+def _log(msg: str) -> None:
+    """Best-effort logging. When the backend runs as a GUI-spawned subprocess
+    there may be no usable stdout, and writing can raise OSError (EIO); never
+    let that break a request."""
+    try:
+        console.log(msg)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def extract_text_tool_calls(text: str) -> list[ToolCall]:
     """Recover tool calls that small models emit as plain text/JSON in content.
 
@@ -96,7 +106,7 @@ def run(
         # Record the assistant's intent, then execute each requested tool.
         messages.append({"role": "assistant", "content": resp.text or ""})
         for call in tool_calls:
-            console.log(f"[cyan]tool[/cyan] {call.name}({call.arguments})")
+            _log(f"[cyan]tool[/cyan] {call.name}({call.arguments})")
             try:
                 result = toolbox.call(call.name, call.arguments)
             except Exception as exc:  # noqa: BLE001 - surface tool errors to the model

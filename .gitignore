@@ -27,3 +27,6 @@ macos/CanvasAI.xcodeproj/
 macos/DerivedData/
 macos/.build/
 *.xcuserstate
+
+# Backend log written by the macOS app
+backend.log
