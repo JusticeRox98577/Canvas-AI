@@ -55,24 +55,32 @@ You ──▶ Agent loop ──▶ Canvas REST API ──▶ your Canvas
   Graded submissions are forced to require explicit human approval and can never
   be auto-submitted.
 
-## Setup
+## Setup (Windows, one command)
 
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -e .                 # core
-pip install -e ".[browser]"      # optional: embedded iframe/LTI extraction
-playwright install chromium      # if you installed the browser extra
+In PowerShell, from where you want it installed:
 
-cp .env.example .env             # then fill in CANVAS_BASE_URL + CANVAS_TOKEN
+```powershell
+git clone https://github.com/JusticeRox98577/Canvas-AI.git
+cd Canvas-AI
+powershell -ExecutionPolicy Bypass -File setup.ps1
 ```
 
-Get a token: Canvas → **Account → Settings → + New Access Token**.
+`setup.ps1` creates a virtual environment, installs Canvas-AI + the browser
+extra, installs Ollama (via winget) and pulls **llama3.1:8b**, and creates your
+`.env`. The 8B model runs fully on a 10GB GPU (e.g. RTX 3080) with VRAM to
+spare, so your PC stays usable.
 
-Run a local model:
-```bash
-ollama pull llama3.1
-ollama serve
+Then, in a new terminal from the project folder:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+notepad .env          # set CANVAS_BASE_URL to your school's Canvas URL
+canvas-ai login       # sign in via Microsoft 365 in the browser window
+canvas-ai courses     # confirm it works
 ```
+
+Ollama runs as a background service on Windows after install, so there's no
+separate `ollama serve` step.
 
 ## Usage
 

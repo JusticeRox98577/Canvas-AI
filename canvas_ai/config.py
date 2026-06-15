@@ -56,7 +56,7 @@ class Config:
             canvas_profile_dir=os.getenv("CANVAS_PROFILE_DIR", ".canvas_profile"),
             llm_provider=os.getenv("LLM_PROVIDER", "ollama").strip().lower(),
             ollama_host=os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/"),
-            ollama_model=os.getenv("OLLAMA_MODEL", "llama3.1"),
+            ollama_model=os.getenv("OLLAMA_MODEL", "llama3.1:8b"),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
             anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-opus-4-8"),
             write_mode=write_mode,
