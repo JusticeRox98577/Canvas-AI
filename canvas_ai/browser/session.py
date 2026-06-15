@@ -13,6 +13,8 @@ unchanged regardless of auth mode.
 
 from __future__ import annotations
 
+import json
+import os
 import time
 from typing import Any, Iterator
 from urllib.parse import unquote
@@ -43,12 +45,35 @@ class BrowserCanvasClient:
         self._base = f"{config.canvas_base_url}/api/v1"
         self._root = config.canvas_base_url
         self._profile_dir = config.canvas_profile_dir
+        self._state_file = os.path.join(config.canvas_profile_dir, "storage_state.json")
         self._headless = headless
         sync_playwright = _require_playwright()
         self._pw = sync_playwright().start()
         self._ctx = self._launch(headless)
+        # Chromium does not persist session cookies (no expiry) to the profile on
+        # close, and Canvas's session cookie is exactly that. So we additionally
+        # restore a saved storage-state snapshot on startup.
+        self._restore_state()
         # context.request shares cookies with the browser context automatically.
         self._req = self._ctx.request
+
+    # -- session persistence --------------------------------------------
+    def _restore_state(self) -> None:
+        if not os.path.exists(self._state_file):
+            return
+        try:
+            with open(self._state_file) as fh:
+                state = json.load(fh)
+            cookies = state.get("cookies", [])
+            if cookies:
+                self._ctx.add_cookies(cookies)
+        except Exception:  # noqa: BLE001 - corrupt/old snapshot shouldn't crash
+            pass
+
+    def save_state(self) -> None:
+        """Persist the current session (including in-memory session cookies)."""
+        os.makedirs(self._profile_dir, exist_ok=True)
+        self._ctx.storage_state(path=self._state_file)
 
     def _launch(self, headless: bool):
         """Launch the persistent context, tuned to survive Microsoft 365 SSO.
@@ -183,6 +208,7 @@ def interactive_login(config: Config, *, timeout_s: int = 600) -> None:
         deadline = time.time() + timeout_s
         while time.time() < deadline:
             if client.is_authenticated():
+                client.save_state()
                 console.print("[green]Logged in. Session saved.[/green]")
                 return
             time.sleep(2.0)
