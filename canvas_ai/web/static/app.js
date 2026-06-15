@@ -87,12 +87,93 @@ async function loadModules() {
 }
 
 async function openItem(it) {
-  if (it.type === "Page" && it.page_url) return openPage(it.page_url);
-  if (it.type === "Assignment" && it.content_id) return openAssignment(it.content_id, it.title);
-  // Fallback: link out for files / quizzes / external tools.
-  showReader(it.title || "Item",
-    `<p class="muted">This item type (${it.type}) opens in Canvas.</p>` +
-    (it.html_url ? `<p><a href="${it.html_url}" target="_blank">Open in Canvas ↗</a></p>` : ""));
+  switch (it.type) {
+    case "Page": return openPage(it.page_url);
+    case "Assignment": return openAssignment(it.content_id, it.title);
+    case "Discussion": return openDiscussion(it.content_id);
+    case "File": return openFile(it.content_id, it.title);
+    case "Quiz": return openQuiz(it.content_id, it.title);
+    case "ExternalUrl":
+    case "ExternalTool":
+      return openExternal(it.external_url || it.html_url, it.title);
+    case "SubHeader":
+      return; // headers aren't openable
+    default:
+      return openExternal(it.html_url, it.title);
+  }
+}
+
+async function openFile(fileId, title) {
+  showReader("Loading…", "");
+  try {
+    const m = await api(`/api/file?file_id=${fileId}`);
+    const ct = (m.content_type || "").toLowerCase();
+    if (ct.includes("pdf")) {
+      showReader(m.display_name || title, `<iframe src="/api/file/raw?file_id=${fileId}" style="width:100%;height:75vh;border:0;border-radius:8px"></iframe>`);
+    } else if (ct.startsWith("image/")) {
+      showReader(m.display_name || title, `<img src="/api/file/raw?file_id=${fileId}" />`);
+    } else {
+      const t = await api(`/api/file/text?file_id=${fileId}`);
+      const node = el("div");
+      node.appendChild(el("pre", "body", escapeHtml(t.text || "(no extractable text)")));
+      const btn = el("button", "ghost", "Explain with AI");
+      btn.onclick = async () => {
+        btn.disabled = true; btn.textContent = "Thinking…";
+        try {
+          const r = await api("/api/agent", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: agentBody(`Explain this document in simple terms:\n\n${(t.text || "").slice(0, 4000)}`) });
+          node.appendChild(el("div", "msg ai", escapeHtml(r.answer)));
+        } catch (e) { alert(e.message); }
+        btn.disabled = false; btn.textContent = "Explain with AI";
+      };
+      node.appendChild(btn);
+      showReaderNode(t.display_name || title, node);
+    }
+  } catch (e) { showReader("Error", `<p class="muted">${escapeHtml(e.message)}</p>`); }
+}
+
+async function openExternal(url, title) {
+  if (!url) return showReader(title || "Item", `<p class="muted">No link available.</p>`);
+  showReader(title || "External", `
+    <iframe src="${url}" style="width:100%;height:75vh;border:0;border-radius:8px"></iframe>
+    <p class="muted">If this stays blank, the site blocks embedding —
+      <a href="${url}" target="_blank">open it in a new tab ↗</a>.</p>`);
+}
+
+async function openQuiz(quizId, title) {
+  showReader("Loading…", "");
+  try {
+    const q = await api(`/api/quiz?course_id=${activeCourse.id}&quiz_id=${quizId}`);
+    const node = el("div");
+    node.appendChild(el("div", "body", q.description || "<em>No description</em>"));
+    const meta = [
+      q.points_possible != null ? `Points: ${q.points_possible}` : null,
+      q.question_count != null ? `Questions: ${q.question_count}` : null,
+      q.time_limit ? `Time limit: ${q.time_limit} min` : null,
+      q.due_at ? `Due: ${fmt(q.due_at)}` : null,
+      q.allowed_attempts != null ? `Attempts: ${q.allowed_attempts < 0 ? "unlimited" : q.allowed_attempts}` : null,
+    ].filter(Boolean).join(" · ");
+    node.appendChild(el("p", "muted", meta));
+    node.appendChild(el("p", "muted",
+      "Quizzes are taken in Canvas — the AI won't auto-answer graded work. " +
+      "Use Study mode below to actually learn the material."));
+    const row = el("div", "row");
+    const study = el("button", "ghost", "Study this with AI");
+    const open = el("button", "primary", "Open quiz in Canvas ↗");
+    study.onclick = async () => {
+      study.disabled = true; study.textContent = "Thinking…";
+      try {
+        const r = await api("/api/agent", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: agentBody(`I have a quiz titled "${q.title}". Based on this course's material, explain the key concepts I should understand to do well. Quiz description: ${strip(q.description)}`) });
+        node.appendChild(el("div", "msg ai", escapeHtml(r.answer)));
+      } catch (e) { alert(e.message); }
+      study.disabled = false; study.textContent = "Study this with AI";
+    };
+    open.onclick = () => { if (q.html_url) window.open(q.html_url, "_blank"); };
+    row.appendChild(study); row.appendChild(open);
+    node.appendChild(row);
+    showReaderNode(q.title || title || "Quiz", node);
+  } catch (e) { showReader("Error", `<p class="muted">${escapeHtml(e.message)}</p>`); }
 }
 
 async function openPage(pageUrl) {

@@ -10,15 +10,16 @@ explicit confirm flag.
 from __future__ import annotations
 
 import os
-from typing import Any
 
+import httpx
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from canvas_ai.canvas import assignments, courses, discussions, pages
+from canvas_ai.canvas import assignments, courses, discussions, files as files_api, pages
 from canvas_ai.canvas.cookie_client import CookieCanvasClient, SessionExpired
+from canvas_ai.extract import documents
 from canvas_ai.config import Config
 from canvas_ai.agent.loop import SYSTEM_PROMPT, run as run_agent
 from canvas_ai.agent.tools import Toolbox
@@ -129,6 +130,51 @@ def api_dashboard(course_id: int | None = None) -> list[dict]:
                         })
         rows.sort(key=lambda r: r["due_at"])
         return rows
+    return _guard(go)
+
+
+@app.get("/api/file")
+def api_file(file_id: int) -> dict:
+    def go():
+        with client() as c:
+            m = c.get(f"/files/{file_id}")
+        return {
+            "id": m.get("id"),
+            "display_name": m.get("display_name"),
+            "content_type": m.get("content-type") or m.get("content_type"),
+            "size": m.get("size"),
+        }
+    return _guard(go)
+
+
+@app.get("/api/file/raw")
+def api_file_raw(file_id: int) -> Response:
+    """Proxy the file bytes so PDFs/images render inside the app."""
+    def go():
+        with client() as c:
+            m = c.get(f"/files/{file_id}")
+        r = httpx.get(m["url"], follow_redirects=True, timeout=60)
+        ct = m.get("content-type") or "application/octet-stream"
+        return Response(content=r.content, media_type=ct)
+    return _guard(go)
+
+
+@app.get("/api/file/text")
+def api_file_text(file_id: int) -> dict:
+    """Extract text from a doc (PDF/DOCX) for in-app reading + AI study help."""
+    def go():
+        with client() as c:
+            m = c.get(f"/files/{file_id}")
+            path = files_api.download(c, m)
+        return {"display_name": m.get("display_name"), "text": documents.extract_text(path)[:20000]}
+    return _guard(go)
+
+
+@app.get("/api/quiz")
+def api_quiz(course_id: int, quiz_id: int) -> dict:
+    def go():
+        with client() as c:
+            return c.get(f"/courses/{course_id}/quizzes/{quiz_id}")
     return _guard(go)
 
 
