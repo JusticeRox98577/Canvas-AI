@@ -30,6 +30,7 @@ class Config:
     auth_mode: str
     canvas_profile_dir: str
     llm_provider: str
+    draft_provider: str
     ollama_host: str
     ollama_model: str
     anthropic_api_key: str
@@ -55,6 +56,7 @@ class Config:
             auth_mode=auth_mode,
             canvas_profile_dir=os.getenv("CANVAS_PROFILE_DIR", ".canvas_profile"),
             llm_provider=os.getenv("LLM_PROVIDER", "ollama").strip().lower(),
+            draft_provider=os.getenv("DRAFT_PROVIDER", os.getenv("LLM_PROVIDER", "ollama")).strip().lower(),
             ollama_host=os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/"),
             ollama_model=os.getenv("OLLAMA_MODEL", "llama3.1:8b"),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),

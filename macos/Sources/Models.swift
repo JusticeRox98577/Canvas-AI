@@ -125,6 +125,7 @@ struct AgentReq: Encodable {
     let course_id: Int?
     let course_name: String?
 }
+struct DraftReq: Encodable { let goal: String }
 struct ReplyReq: Encodable {
     let course_id: Int
     let topic_id: Int

@@ -148,13 +148,13 @@ struct FileReader: View {
         if let t: FileText = try? await API.shared.get("/api/file/text?file_id=\(fileId)") { text = t.text }
     }
     private func explain() {
-        guard let t = text, let c = course else { return }
+        guard let t = text else { return }
         busy = true; aiAnswer = nil
         Task {
             do {
-                let r: AgentResp = try await API.shared.post("/api/agent",
-                    AgentReq(goal: "Explain this document simply:\n\n" + String(t.prefix(4000)),
-                             course_id: c.id, course_name: c.name), timeout: 240)
+                let r: AgentResp = try await API.shared.post("/api/draft",
+                    DraftReq(goal: "Explain this document simply for a student:\n\n" + String(t.prefix(4000))),
+                    timeout: 240)
                 aiAnswer = r.answer.isEmpty ? "The AI returned nothing — try again." : r.answer
             } catch { aiAnswer = "Failed: \(error.localizedDescription)" }
             busy = false
@@ -207,13 +207,13 @@ struct QuizReader: View {
         return p.joined(separator: " · ")
     }
     private func runStudy(_ q: Quiz) {
-        guard let c = course else { return }
         busy = true; study = nil
+        let desc = HTMLText.plain(q.description ?? "")
         Task {
             do {
-                let r: AgentResp = try await API.shared.post("/api/agent",
-                    AgentReq(goal: "I have a quiz '\(q.title ?? "")'. Explain the key concepts I should understand to do well. Description: \(q.description ?? "")",
-                             course_id: c.id, course_name: c.name), timeout: 240)
+                let r: AgentResp = try await API.shared.post("/api/draft",
+                    DraftReq(goal: "I have a quiz '\(q.title ?? "")'. Explain the key concepts I should understand to do well, in plain language. Description: \(desc)"),
+                    timeout: 240)
                 study = r.answer.isEmpty ? "The AI returned nothing — try again." : r.answer
             } catch { study = "Failed: \(error.localizedDescription)" }
             busy = false
@@ -277,9 +277,10 @@ struct DiscussionReader: View {
         Task {
             do {
                 let prompt = HTMLText.plain(d.message ?? "")
-                let r: AgentResp = try await API.shared.post("/api/agent",
-                    AgentReq(goal: "Draft my reply to this discussion.\n\nPROMPT:\n\(prompt)\n\n\(DraftStyle.discussion)",
-                             course_id: c.id, course_name: c.name), timeout: 240)
+                _ = c
+                let r: AgentResp = try await API.shared.post("/api/draft",
+                    DraftReq(goal: "Draft my reply to this discussion.\n\nPROMPT:\n\(prompt)\n\n\(DraftStyle.discussion)"),
+                    timeout: 240)
                 if r.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     status = "The AI returned an empty draft — try again."
                 } else { reply = r.answer; status = nil }
@@ -348,9 +349,10 @@ struct AssignmentReader: View {
         Task {
             do {
                 let desc = HTMLText.plain(a.description ?? "")
-                let r: AgentResp = try await API.shared.post("/api/agent",
-                    AgentReq(goal: "Draft my submission for the assignment '\(a.name ?? "")'.\n\nINSTRUCTIONS:\n\(desc)\n\n\(DraftStyle.assignment)",
-                             course_id: c.id, course_name: c.name), timeout: 240)
+                _ = c
+                let r: AgentResp = try await API.shared.post("/api/draft",
+                    DraftReq(goal: "Draft my submission for the assignment '\(a.name ?? "")'.\n\nINSTRUCTIONS:\n\(desc)\n\n\(DraftStyle.assignment)"),
+                    timeout: 240)
                 if r.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     status = "The AI returned an empty draft — try again."
                 } else { body_ = r.answer; status = nil }

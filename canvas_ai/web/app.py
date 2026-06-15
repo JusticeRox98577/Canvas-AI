@@ -29,7 +29,8 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
 app = FastAPI(title="Canvas-AI")
 _config = Config.load()
-_brain = None  # lazily created on first agent call
+_brain = None        # agent brain (tool-using), lazily created
+_draft_brain = None  # drafting brain (can be a different/better provider)
 
 
 def client() -> CookieCanvasClient:
@@ -271,6 +272,37 @@ def _course_outline(c: CookieCanvasClient, course_id: int, course_name: str | No
     if len(text) > 6000:
         text = text[:6000] + "\n…(outline truncated)"
     return text
+
+
+DRAFT_SYSTEM = (
+    "You are a writing assistant helping a student draft text they will review "
+    "and edit. Output ONLY the requested text — no preamble, no explanation, and "
+    "never mention tools, functions, APIs, or that you are an AI. Follow the "
+    "requested voice, length, and format exactly."
+)
+
+
+class DraftIn(BaseModel):
+    goal: str
+
+
+@app.post("/api/draft")
+def api_draft(body: DraftIn) -> dict:
+    """Tool-free single-shot generation for drafting/explaining. The agent's
+    tool machinery confuses small models into 'calling functions' instead of
+    just writing, so this path uses a plain chat with no tools."""
+    global _draft_brain
+    if _draft_brain is None:
+        _draft_brain = get_provider(_config, _config.draft_provider)
+
+    def go():
+        resp = _draft_brain.chat(
+            [{"role": "system", "content": DRAFT_SYSTEM},
+             {"role": "user", "content": body.goal}],
+            tools=None,
+        )
+        return {"answer": resp.text}
+    return _guard(go)
 
 
 @app.post("/api/agent")
