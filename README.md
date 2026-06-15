@@ -82,6 +82,33 @@ canvas-ai courses     # confirm it works
 Ollama runs as a background service on Windows after install, so there's no
 separate `ollama serve` step.
 
+## Setup (macOS, one command)
+
+In Terminal, from where you want it installed:
+
+```bash
+git clone https://github.com/JusticeRox98577/Canvas-AI.git
+cd Canvas-AI
+bash setup.sh
+```
+
+`setup.sh` creates a virtual environment, installs Canvas-AI + the browser
+extra, installs Ollama (via Homebrew), starts the Ollama server, pulls
+**llama3.1:8b**, and creates your `.env`. On Apple Silicon the 8B model runs on
+the GPU via Metal using unified memory (~6GB), comfortable on 16GB+ Macs.
+
+Then, in a new terminal from the project folder:
+
+```bash
+source .venv/bin/activate
+nano .env             # set CANVAS_BASE_URL to your school's Canvas URL
+canvas-ai login       # sign in via Microsoft 365 in the browser window
+canvas-ai courses     # confirm it works
+```
+
+(Requires [Homebrew](https://brew.sh). If you don't have it, install Ollama from
+https://ollama.com/download and re-run.)
+
 ## Usage
 
 ```bash
