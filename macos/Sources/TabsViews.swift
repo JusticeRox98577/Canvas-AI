@@ -219,7 +219,7 @@ struct ChatView: View {
         Task {
             do {
                 let r: AgentResp = try await API.shared.post("/api/agent",
-                    AgentReq(goal: goal, course_id: course.id, course_name: course.name))
+                    AgentReq(goal: goal, course_id: course.id, course_name: course.name), timeout: 240)
                 messages.removeLast()
                 messages.append(ChatMsg(role: "ai", text: r.answer))
             } catch {

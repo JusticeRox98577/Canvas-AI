@@ -266,7 +266,11 @@ def _course_outline(c: CookieCanvasClient, course_id: int, course_name: str | No
         "Base your answer ONLY on the outline above plus any tool results. "
         "To summarize a page's actual content, call read_page with its page_url."
     )
-    return "\n".join(lines)
+    text = "\n".join(lines)
+    # Cap the context so big courses don't slow the local model to a crawl.
+    if len(text) > 6000:
+        text = text[:6000] + "\n…(outline truncated)"
+    return text
 
 
 @app.post("/api/agent")

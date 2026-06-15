@@ -19,19 +19,20 @@ final class API {
     }
 
     @discardableResult
-    func post<T: Decodable, B: Encodable>(_ path: String, _ body: B) async throws -> T {
-        let data = try await postData(path, body)
+    func post<T: Decodable, B: Encodable>(_ path: String, _ body: B, timeout: TimeInterval = 60) async throws -> T {
+        let data = try await postData(path, body, timeout: timeout)
         return try JSONDecoder().decode(T.self, from: data)
     }
 
-    func postVoid<B: Encodable>(_ path: String, _ body: B) async throws {
-        _ = try await postData(path, body)
+    func postVoid<B: Encodable>(_ path: String, _ body: B, timeout: TimeInterval = 60) async throws {
+        _ = try await postData(path, body, timeout: timeout)
     }
 
-    private func postData<B: Encodable>(_ path: String, _ body: B) async throws -> Data {
+    private func postData<B: Encodable>(_ path: String, _ body: B, timeout: TimeInterval) async throws -> Data {
         guard let url = URL(string: base + path) else { throw APIError(message: "Bad URL") }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
+        req.timeoutInterval = timeout
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONEncoder().encode(body)
         let (data, resp) = try await URLSession.shared.data(for: req)
