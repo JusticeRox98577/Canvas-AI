@@ -1,17 +1,16 @@
 import SwiftUI
+import AppKit
 import PDFKit
 
-/// Renders Canvas HTML natively (no web view) via NSAttributedString.
+/// Renders Canvas HTML natively (no web view) via NSAttributedString, restyled
+/// to use the system font and adaptive colors so it matches the app.
 struct HTMLText: View {
     let html: String
 
     var body: some View {
-        ScrollView {
-            Text(Self.attributed(html))
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(2)
-        }
+        Text(Self.attributed(html))
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     static func attributed(_ html: String) -> AttributedString {
@@ -20,11 +19,31 @@ struct HTMLText: View {
             .documentType: NSAttributedString.DocumentType.html,
             .characterEncoding: String.Encoding.utf8.rawValue,
         ]
-        if let ns = try? NSAttributedString(data: data, options: opts, documentAttributes: nil) {
-            if let a = try? AttributedString(ns, including: \.appKit) { return a }
-            return AttributedString(ns.string)
+        guard let ns = try? NSMutableAttributedString(data: data, options: opts, documentAttributes: nil) else {
+            return AttributedString(html)
         }
-        return AttributedString(html)
+        let full = NSRange(location: 0, length: ns.length)
+        let manager = NSFontManager.shared
+
+        // Replace the HTML's serif fonts with the system font, keeping bold/italic.
+        ns.enumerateAttribute(.font, in: full) { value, range, _ in
+            var font = NSFont.systemFont(ofSize: 14)
+            if let existing = value as? NSFont {
+                let traits = manager.traits(of: existing)
+                if traits.contains(.boldFontMask) {
+                    font = manager.convert(font, toHaveTrait: .boldFontMask)
+                }
+                if traits.contains(.italicFontMask) {
+                    font = manager.convert(font, toHaveTrait: .italicFontMask)
+                }
+            }
+            ns.addAttribute(.font, value: font, range: range)
+        }
+        // Adaptive text color (works in light + dark mode).
+        ns.addAttribute(.foregroundColor, value: NSColor.labelColor, range: full)
+
+        if let a = try? AttributedString(ns, including: \.appKit) { return a }
+        return AttributedString(ns.string)
     }
 }
 

@@ -69,7 +69,9 @@ struct PageReader: View {
 
     var body: some View {
         Group {
-            if let p = page { HTMLText(html: p.html ?? "").padding(12) }
+            if let p = page {
+                ScrollView { HTMLText(html: p.html ?? "").padding(14) }
+            }
             else if let error { Text(error).foregroundStyle(.secondary) }
             else { ProgressView() }
         }
@@ -148,7 +150,7 @@ struct QuizReader: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if let q = quiz {
-                    HTMLText(html: q.description ?? "<em>No description</em>").frame(height: 160)
+                    HTMLText(html: q.description ?? "<em>No description</em>")
                     Text(metaLine(q)).font(.callout).foregroundStyle(.secondary)
                     Text("Quizzes are taken in Canvas. The AI won't answer graded work — use Study mode to learn the material.")
                         .font(.caption).foregroundStyle(.secondary)
@@ -207,7 +209,8 @@ struct DiscussionReader: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if let d = detail {
-                    HTMLText(html: d.message ?? "").frame(height: 140)
+                    HTMLText(html: d.message ?? "")
+                    Divider()
                     Text("Replies").font(.headline)
                     ForEach(d.entries ?? []) { e in
                         VStack(alignment: .leading, spacing: 4) {
@@ -278,7 +281,7 @@ struct AssignmentReader: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if let a = asg {
-                    HTMLText(html: a.description ?? "<em>No description</em>").frame(height: 180)
+                    HTMLText(html: a.description ?? "<em>No description</em>")
                     if let due = a.due_at { Text("Due: \(due.prettyDate)").foregroundStyle(.secondary) }
                     Text("Your submission (text)").font(.headline)
                     TextEditor(text: $body_).frame(height: 160)
