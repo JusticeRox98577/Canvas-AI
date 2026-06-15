@@ -2,15 +2,54 @@
 
 from __future__ import annotations
 
+import ast
 import json
+import re
 from typing import Any
 
 from rich.console import Console
 
 from canvas_ai.agent.tools import Toolbox, tool_schemas
-from canvas_ai.llm.base import LLMProvider
+from canvas_ai.llm.base import LLMProvider, ToolCall
 
 console = Console()
+
+
+def extract_text_tool_calls(text: str) -> list[ToolCall]:
+    """Recover tool calls that small models emit as plain text/JSON in content.
+
+    Local models (e.g. llama3.1:8b) often print
+    ``{"name": "read_discussion", "parameters": {...}}`` instead of using the
+    structured tool-call channel. We parse those so the loop can execute them
+    rather than showing raw JSON to the user.
+    """
+    if not text:
+        return []
+    s = re.sub(r"```(?:json)?", "", text).replace("```", "").strip()
+    start, end = s.find("{"), s.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        return []
+    blob = s[start : end + 1]
+    data = None
+    for parse in (json.loads, ast.literal_eval):  # ast handles True/False/None, quotes
+        try:
+            data = parse(blob)
+            break
+        except Exception:  # noqa: BLE001
+            continue
+    if data is None:
+        return []
+
+    out: list[ToolCall] = []
+    for d in data if isinstance(data, list) else [data]:
+        if not isinstance(d, dict):
+            continue
+        fn = d.get("function") if isinstance(d.get("function"), dict) else {}
+        name = d.get("name") or d.get("tool") or fn.get("name")
+        args = d.get("parameters") or d.get("arguments") or fn.get("arguments") or {}
+        if name and isinstance(args, dict):
+            out.append(ToolCall(name=name, arguments=args))
+    return out
 
 SYSTEM_PROMPT = """You are Canvas-AI, an assistant that helps a student work with
 their own Canvas LMS account. You can read courses, modules, pages, embedded
@@ -49,12 +88,14 @@ def run(
     for step in range(max_steps):
         resp = brain.chat(messages, tools=schemas)
 
-        if not resp.tool_calls:
+        # Use structured tool calls, or recover ones the model printed as text.
+        tool_calls = resp.tool_calls or extract_text_tool_calls(resp.text)
+        if not tool_calls:
             return resp.text or "(no response)"
 
         # Record the assistant's intent, then execute each requested tool.
         messages.append({"role": "assistant", "content": resp.text or ""})
-        for call in resp.tool_calls:
+        for call in tool_calls:
             console.log(f"[cyan]tool[/cyan] {call.name}({call.arguments})")
             try:
                 result = toolbox.call(call.name, call.arguments)

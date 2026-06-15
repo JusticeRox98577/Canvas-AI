@@ -39,6 +39,20 @@ def test_dry_run_never_writes():
     assert approve("post_discussion_reply", "hi", mode="dry_run") is False
 
 
+def test_recovers_tool_call_emitted_as_text():
+    from canvas_ai.agent.loop import extract_text_tool_calls
+
+    # The exact shape llama3.1:8b produced in the UI (note Python-style False).
+    raw = '{"name": "read_discussion", "parameters": {"follow_embedded": False, "course_id": 48174, "topic_id": 1}}'
+    calls = extract_text_tool_calls(raw)
+    assert len(calls) == 1
+    assert calls[0].name == "read_discussion"
+    assert calls[0].arguments["course_id"] == 48174
+
+    # Plain prose should yield nothing.
+    assert extract_text_tool_calls("Here is the summary of module 3.") == []
+
+
 def test_read_only_schemas_exclude_writes():
     names = {s["function"]["name"] for s in tool_schemas(include_writes=False)}
     assert not (names & WRITE_TOOLS)
