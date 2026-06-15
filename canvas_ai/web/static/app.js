@@ -119,7 +119,7 @@ async function openAssignment(aid, title) {
       draftBtn.disabled = true; draftBtn.textContent = "Drafting…";
       try {
         const r = await api("/api/agent", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ goal: `Draft a response for the assignment "${a.name}" in course ${activeCourse.id}. Assignment description: ${strip(a.description)}` }) });
+          body: agentBody(`Draft a response for the assignment "${a.name}". Assignment description: ${strip(a.description)}`) });
         ta.value = r.answer;
       } catch (e) { alert(e.message); }
       draftBtn.disabled = false; draftBtn.textContent = "Draft with AI";
@@ -200,7 +200,7 @@ async function openDiscussion(tid) {
       draftBtn.disabled = true; draftBtn.textContent = "Drafting…";
       try {
         const r = await api("/api/agent", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ goal: `Draft a thoughtful discussion reply for topic ${tid} in course ${activeCourse.id}. Prompt: ${strip(d.message)}` }) });
+          body: agentBody(`Draft a thoughtful discussion reply for topic ${tid}. Prompt: ${strip(d.message)}`) });
         ta.value = r.answer;
       } catch (e) { alert(e.message); }
       draftBtn.disabled = false; draftBtn.textContent = "Draft with AI";
@@ -220,16 +220,25 @@ async function openDiscussion(tid) {
 }
 
 // ---- chat ----
+function agentBody(goal) {
+  return JSON.stringify({
+    goal,
+    course_id: activeCourse ? activeCourse.id : null,
+    course_name: activeCourse ? activeCourse.name : null,
+  });
+}
+
 async function sendChat() {
   const ta = $("#chat-text");
   const goal = ta.value.trim();
   if (!goal) return;
+  if (!activeCourse) addMsg("sys", "Tip: pick a course on the left so I use real data.");
   addMsg("user", goal);
   ta.value = "";
   const thinking = addMsg("sys", "thinking…");
   try {
     const r = await api("/api/agent", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ goal }) });
+      body: agentBody(goal) });
     thinking.remove();
     addMsg("ai", r.answer);
   } catch (e) { thinking.remove(); addMsg("sys", "Error: " + e.message); }

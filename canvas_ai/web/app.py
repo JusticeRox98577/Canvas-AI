@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from canvas_ai.canvas import assignments, courses, discussions, pages
 from canvas_ai.canvas.cookie_client import CookieCanvasClient, SessionExpired
 from canvas_ai.config import Config
-from canvas_ai.agent.loop import run as run_agent
+from canvas_ai.agent.loop import SYSTEM_PROMPT, run as run_agent
 from canvas_ai.agent.tools import Toolbox
 from canvas_ai.llm import get_provider
 
@@ -191,6 +191,33 @@ def api_submit(body: SubmitIn) -> dict:
 # -- agent (read-only) ----------------------------------------------------
 class AgentIn(BaseModel):
     goal: str
+    course_id: int | None = None
+    course_name: str | None = None
+
+
+def _course_outline(c: CookieCanvasClient, course_id: int, course_name: str | None) -> str:
+    """Real module/item outline so the model can't invent course structure."""
+    lines = [
+        f"GROUNDING CONTEXT (real data from Canvas):",
+        f"The user is currently viewing course '{course_name or course_id}' "
+        f"(course_id={course_id}). Use this course_id for tool calls.",
+        "Modules and items actually in this course:",
+    ]
+    try:
+        mods = courses.list_modules(c, course_id)
+        if not mods:
+            lines.append("  (this course has no modules)")
+        for m in mods:
+            lines.append(f"- Module: {m.get('name')}")
+            for it in courses.list_module_items(c, course_id, m["id"]):
+                lines.append(f"    - [{it.get('type')}] {it.get('title')}")
+    except Exception as exc:  # noqa: BLE001
+        lines.append(f"  (could not load outline: {exc})")
+    lines.append(
+        "Base your answer ONLY on the outline above plus any tool results. "
+        "To summarize a page's actual content, call read_page with its page_url."
+    )
+    return "\n".join(lines)
 
 
 @app.post("/api/agent")
@@ -202,7 +229,10 @@ def api_agent(body: AgentIn) -> dict:
     def go():
         with client() as c:
             toolbox = Toolbox(c, _config)
-            answer = run_agent(_brain, toolbox, body.goal, include_writes=False)
+            history = [{"role": "system", "content": SYSTEM_PROMPT}]
+            if body.course_id:
+                history.append({"role": "system", "content": _course_outline(c, body.course_id, body.course_name)})
+            answer = run_agent(_brain, toolbox, body.goal, include_writes=False, history=history)
         return {"answer": answer}
     return _guard(go)
 
