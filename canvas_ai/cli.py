@@ -17,13 +17,31 @@ from canvas_ai.llm import get_provider
 console = Console()
 
 
-def _build(config: Config) -> tuple[CanvasClient, Toolbox]:
-    client = CanvasClient(config)
+def make_client(config: Config):
+    """Pick the auth backend: browser session (default) or bearer token."""
+    if config.auth_mode == "browser":
+        from canvas_ai.browser.session import BrowserCanvasClient
+
+        return BrowserCanvasClient(config)
+    return CanvasClient(config)
+
+
+def _build(config: Config):
+    client = make_client(config)
     return client, Toolbox(client, config)
 
 
+def cmd_login(config: Config) -> None:
+    if config.auth_mode != "browser":
+        console.print("[yellow]AUTH_MODE is not 'browser'; login is only for browser mode.[/yellow]")
+        return
+    from canvas_ai.browser.session import interactive_login
+
+    interactive_login(config)
+
+
 def cmd_courses(config: Config) -> None:
-    with CanvasClient(config) as client:
+    with make_client(config) as client:
         for c in courses_api.list_courses(client):
             console.print(f"[bold]{c['id']}[/bold]  {c.get('name')}")
 
@@ -41,6 +59,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(prog="canvas-ai", description="Local-first Canvas LMS assistant")
     sub = parser.add_subparsers(dest="command", required=True)
 
+    sub.add_parser("login", help="Open a browser to log into Canvas (browser auth mode)")
     sub.add_parser("courses", help="List your active courses (connectivity check)")
 
     agent = sub.add_parser("agent", help="Run the agent with a natural-language goal")
@@ -54,7 +73,9 @@ def main() -> int:
         console.print(f"[red]Config error:[/red] {exc}")
         return 2
 
-    if args.command == "courses":
+    if args.command == "login":
+        cmd_login(config)
+    elif args.command == "courses":
         cmd_courses(config)
     elif args.command == "agent":
         cmd_agent(config, args.goal)

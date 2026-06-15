@@ -2,6 +2,9 @@
 .env
 config/*.local.*
 
+# Persistent browser login session (contains your Canvas cookies!)
+.canvas_profile/
+
 # Python
 __pycache__/
 *.py[cod]

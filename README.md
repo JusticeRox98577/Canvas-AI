@@ -9,6 +9,26 @@ The "brain" runs **locally via [Ollama](https://ollama.com)** by default, so no
 data leaves your machine except the calls to your own Canvas server. An optional
 cloud brain (Anthropic) can be enabled if you want stronger reasoning.
 
+## Authentication (no token? no problem)
+
+Many K-12 districts disable personal access tokens. Canvas-AI handles both cases:
+
+- **`AUTH_MODE=browser` (default):** you log in once through a real browser
+  window — including your district's SSO/MFA — and the session is saved to a
+  local profile. Canvas-AI then makes the *same official REST API calls* using
+  your session cookies. No token, no admin approval needed; it can only do what
+  you can already do when logged in.
+- **`AUTH_MODE=token`:** use a personal access token (Canvas → Account →
+  Settings → **+ New Access Token**) if your school allows them.
+
+Browser mode needs the browser extra:
+```bash
+pip install -e ".[browser]" && playwright install chromium
+canvas-ai login        # opens a window; log in, it detects success, saves session
+```
+Your saved session lives in `.canvas_profile/` (git-ignored — it holds your
+cookies, so never commit or share it).
+
 ## How it works
 
 ```
@@ -51,6 +71,7 @@ ollama serve
 ## Usage
 
 ```bash
+canvas-ai login                                     # browser mode: log in once
 canvas-ai courses                                   # connectivity check
 canvas-ai agent "Summarize Module 3 in Biology and list any due dates"
 canvas-ai agent "Draft a reply to this week's discussion in History"

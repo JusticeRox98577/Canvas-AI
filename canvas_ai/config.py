@@ -27,6 +27,8 @@ def _require(name: str) -> str:
 class Config:
     canvas_base_url: str
     canvas_token: str
+    auth_mode: str
+    canvas_profile_dir: str
     llm_provider: str
     ollama_host: str
     ollama_model: str
@@ -40,9 +42,18 @@ class Config:
         if write_mode not in {"dry_run", "confirm", "auto"}:
             raise ConfigError(f"WRITE_MODE must be dry_run|confirm|auto, got {write_mode!r}")
 
+        auth_mode = os.getenv("AUTH_MODE", "browser").strip().lower()
+        if auth_mode not in {"token", "browser"}:
+            raise ConfigError(f"AUTH_MODE must be token|browser, got {auth_mode!r}")
+
+        # A token is only required in token mode; browser mode logs in interactively.
+        token = _require("CANVAS_TOKEN") if auth_mode == "token" else os.getenv("CANVAS_TOKEN", "")
+
         return cls(
             canvas_base_url=_require("CANVAS_BASE_URL").rstrip("/"),
-            canvas_token=_require("CANVAS_TOKEN"),
+            canvas_token=token,
+            auth_mode=auth_mode,
+            canvas_profile_dir=os.getenv("CANVAS_PROFILE_DIR", ".canvas_profile"),
             llm_provider=os.getenv("LLM_PROVIDER", "ollama").strip().lower(),
             ollama_host=os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/"),
             ollama_model=os.getenv("OLLAMA_MODEL", "llama3.1"),
