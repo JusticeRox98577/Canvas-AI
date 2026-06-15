@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Canvas-AI</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">Canvas&#8209;AI</div>
+    <div id="status" class="status">checking…</div>
+  </header>
+
+  <div id="auth-banner" class="banner hidden">
+    Not signed in. Run <code>canvas-ai login</code> in your terminal, then reload.
+  </div>
+
+  <main>
+    <aside id="sidebar">
+      <div class="sidebar-title">Courses</div>
+      <ul id="course-list"></ul>
+    </aside>
+
+    <section id="content">
+      <nav class="tabs">
+        <button data-tab="modules" class="active">Modules</button>
+        <button data-tab="dashboard">Due Dates</button>
+        <button data-tab="discussions">Discussions</button>
+        <button data-tab="chat">Chat</button>
+      </nav>
+
+      <div id="tab-modules" class="tab"></div>
+      <div id="tab-dashboard" class="tab hidden"></div>
+      <div id="tab-discussions" class="tab hidden"></div>
+      <div id="tab-chat" class="tab hidden">
+        <div id="chat-log" class="chat-log"></div>
+        <div class="chat-input">
+          <textarea id="chat-text" rows="2" placeholder="Ask about your course… e.g. Summarize module 1"></textarea>
+          <button id="chat-send">Send</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="reader" class="reader hidden"></section>
+  </main>
+
+  <div id="modal" class="modal hidden">
+    <div class="modal-box">
+      <div id="modal-title" class="modal-title"></div>
+      <div id="modal-body" class="modal-body"></div>
+      <div class="modal-actions">
+        <button id="modal-cancel" class="ghost">Cancel</button>
+        <button id="modal-ok" class="danger">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

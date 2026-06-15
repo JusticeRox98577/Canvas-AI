@@ -14,7 +14,7 @@ if (-not (Test-Path ".venv")) {
 # 2. Install Canvas-AI + browser support
 Write-Host "Installing Python dependencies..."
 python -m pip install --upgrade pip | Out-Null
-pip install -e ".[browser]"
+pip install -e ".[browser,web]"
 python -m playwright install chromium
 
 # 3. Ollama (local model runtime)
@@ -43,4 +43,4 @@ Write-Host "Done. Next (in a NEW terminal, from this folder):" -ForegroundColor 
 Write-Host "  1. .\.venv\Scripts\Activate.ps1   (activate the environment)"
 Write-Host "  2. notepad .env                    -> set CANVAS_BASE_URL (https://yourschool.instructure.com)"
 Write-Host "  3. canvas-ai login                 (sign in via Microsoft 365 in the browser window)"
-Write-Host "  4. canvas-ai courses               (confirm it works)"
+Write-Host "  4. canvas-ai web                   (open the GUI)"

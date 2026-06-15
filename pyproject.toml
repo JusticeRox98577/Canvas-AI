@@ -15,6 +15,8 @@ dependencies = [
 [project.optional-dependencies]
 # Browser fallback for embedded iframe/LTI content
 browser = ["playwright>=1.44"]
+# Local web app (GUI)
+web = ["fastapi>=0.110", "uvicorn>=0.29", "pydantic>=2.0"]
 # Cloud brain (optional; off by default)
 anthropic = ["anthropic>=0.40"]
 dev = ["pytest>=8.0", "ruff>=0.5"]
@@ -28,3 +30,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["canvas_ai*"]
+
+[tool.setuptools.package-data]
+"canvas_ai.web" = ["static/*"]

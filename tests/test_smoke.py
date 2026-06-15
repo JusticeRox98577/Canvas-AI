@@ -1,7 +1,11 @@
 """Smoke tests that don't touch the network."""
 
+import os
+
+import pytest
+
 from canvas_ai.agent.gates import HIGH_STAKES, approve
-from canvas_ai.agent.tools import tool_schemas
+from canvas_ai.agent.tools import WRITE_TOOLS, tool_schemas
 from canvas_ai.extract.html import parse_page_html
 
 
@@ -33,3 +37,21 @@ def test_graded_work_is_high_stakes():
 
 def test_dry_run_never_writes():
     assert approve("post_discussion_reply", "hi", mode="dry_run") is False
+
+
+def test_read_only_schemas_exclude_writes():
+    names = {s["function"]["name"] for s in tool_schemas(include_writes=False)}
+    assert not (names & WRITE_TOOLS)
+
+
+def test_web_app_builds_and_handles_no_session():
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    os.environ.setdefault("CANVAS_BASE_URL", "https://x.instructure.com")
+    from canvas_ai.web.app import app
+
+    c = TestClient(app)
+    assert c.get("/api/status").json()["authenticated"] is False
+    assert c.get("/api/courses").status_code == 401  # no saved session
+    assert c.get("/").status_code == 200

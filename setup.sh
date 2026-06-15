@@ -16,7 +16,7 @@ source .venv/bin/activate
 # 2. Install Canvas-AI + browser support
 echo "Installing Python dependencies..."
 python -m pip install --upgrade pip >/dev/null
-pip install -e ".[browser]"
+pip install -e ".[browser,web]"
 python -m playwright install chromium
 
 # 3. Ollama (local model runtime)
@@ -60,5 +60,5 @@ Done. Next (in a new terminal, from this folder):
   1. source .venv/bin/activate
   2. nano .env            # set CANVAS_BASE_URL (https://yourschool.instructure.com)
   3. canvas-ai login      # sign in via Microsoft 365 in the browser window
-  4. canvas-ai courses    # confirm it works
+  4. canvas-ai web        # open the GUI (or: canvas-ai courses to test in terminal)
 EOF

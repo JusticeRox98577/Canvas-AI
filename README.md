@@ -113,10 +113,25 @@ https://ollama.com/download and re-run.)
 
 ```bash
 canvas-ai login                                     # browser mode: log in once
+canvas-ai web                                       # launch the GUI (recommended)
 canvas-ai courses                                   # connectivity check
 canvas-ai agent "Summarize Module 3 in Biology and list any due dates"
 canvas-ai agent "Draft a reply to this week's discussion in History"
 ```
+
+### Web app (GUI)
+
+`canvas-ai web` starts a local web app at http://127.0.0.1:8765 with:
+
+- **Modules** — browse course → modules → items; read pages inline.
+- **Due Dates** — upcoming assignments across all courses with submit status.
+- **Discussions** — read a thread, *Draft with AI*, review, then *Post*.
+- **Chat** — ask the agent about a course in plain English.
+
+The agent in the web app runs **read-only** — it can read and propose, but
+posting a reply or submitting an assignment is always an explicit button click,
+and graded submissions show a confirm dialog first. Reads use your saved login
+session (no browser relaunch), so it's fast.
 
 `WRITE_MODE` in `.env` controls write behavior: `dry_run` (default, writes
 nothing), `confirm` (asks before each write), or `auto` (graded work still asks).

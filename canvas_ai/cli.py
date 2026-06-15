@@ -46,6 +46,23 @@ def cmd_courses(config: Config) -> None:
             console.print(f"[bold]{c['id']}[/bold]  {c.get('name')}")
 
 
+def cmd_web(config: Config, host: str, port: int) -> None:
+    try:
+        import uvicorn
+    except ImportError:
+        console.print("[red]Web extras not installed.[/red] Run: pip install -e \".[web]\"")
+        return
+    url = f"http://{host}:{port}"
+    console.print(f"[green]Canvas-AI web app:[/green] {url}  (Ctrl-C to stop)")
+    try:
+        import webbrowser
+
+        webbrowser.open(url)
+    except Exception:  # noqa: BLE001
+        pass
+    uvicorn.run("canvas_ai.web.app:app", host=host, port=port, log_level="warning")
+
+
 def cmd_agent(config: Config, goal: str) -> None:
     brain = get_provider(config)
     client, toolbox = _build(config)
@@ -62,6 +79,10 @@ def main() -> int:
     sub.add_parser("login", help="Open a browser to log into Canvas (browser auth mode)")
     sub.add_parser("courses", help="List your active courses (connectivity check)")
 
+    web = sub.add_parser("web", help="Launch the local web app (GUI)")
+    web.add_argument("--port", type=int, default=8765)
+    web.add_argument("--host", default="127.0.0.1")
+
     agent = sub.add_parser("agent", help="Run the agent with a natural-language goal")
     agent.add_argument("goal", help="What you want it to do, in plain English")
 
@@ -77,6 +98,8 @@ def main() -> int:
         cmd_login(config)
     elif args.command == "courses":
         cmd_courses(config)
+    elif args.command == "web":
+        cmd_web(config, args.host, args.port)
     elif args.command == "agent":
         cmd_agent(config, args.goal)
     return 0

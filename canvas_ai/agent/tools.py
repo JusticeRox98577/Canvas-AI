@@ -99,8 +99,15 @@ class Toolbox:
         return assignments.submit_text(self.client, course_id, assignment_id, body)
 
 
-def tool_schemas() -> list[dict[str, Any]]:
-    """JSON schemas advertised to the LLM (Ollama/Anthropic compatible shape)."""
+WRITE_TOOLS = {"post_discussion_reply", "reply_to_entry", "submit_assignment_text"}
+
+
+def tool_schemas(include_writes: bool = True) -> list[dict[str, Any]]:
+    """JSON schemas advertised to the LLM (Ollama/Anthropic compatible shape).
+
+    Set include_writes=False (e.g. in the web UI) so the agent can only read and
+    propose; actual posting/submitting then happens through explicit user action.
+    """
 
     def fn(name: str, desc: str, props: dict, required: list[str]) -> dict:
         return {
@@ -113,7 +120,7 @@ def tool_schemas() -> list[dict[str, Any]]:
         }
 
     cid = {"course_id": {"type": "integer"}}
-    return [
+    schemas = [
         fn("list_courses", "List the user's active courses.", {}, []),
         fn("list_modules", "List modules in a course.", cid, ["course_id"]),
         fn(
@@ -159,3 +166,6 @@ def tool_schemas() -> list[dict[str, Any]]:
             ["course_id", "assignment_id", "body"],
         ),
     ]
+    if not include_writes:
+        schemas = [s for s in schemas if s["function"]["name"] not in WRITE_TOOLS]
+    return schemas

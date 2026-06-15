@@ -25,12 +25,18 @@ Call tools as needed. When the task is complete, reply with a short summary.
 """
 
 
-def run(brain: LLMProvider, toolbox: Toolbox, goal: str, *, max_steps: int = 12) -> str:
-    messages: list[dict[str, Any]] = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": goal},
-    ]
-    schemas = tool_schemas()
+def run(
+    brain: LLMProvider,
+    toolbox: Toolbox,
+    goal: str,
+    *,
+    max_steps: int = 12,
+    include_writes: bool = True,
+    history: list[dict[str, Any]] | None = None,
+) -> str:
+    messages: list[dict[str, Any]] = history or [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages.append({"role": "user", "content": goal})
+    schemas = tool_schemas(include_writes=include_writes)
 
     for step in range(max_steps):
         resp = brain.chat(messages, tools=schemas)
