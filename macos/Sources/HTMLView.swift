@@ -45,6 +45,11 @@ struct HTMLText: View {
         if let a = try? AttributedString(ns, including: \.appKit) { return a }
         return AttributedString(ns.string)
     }
+
+    /// Plain-text version of HTML (strips tags) for feeding prompts to the model.
+    static func plain(_ html: String) -> String {
+        String(attributed(html).characters).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 /// Native PDF rendering via PDFKit.

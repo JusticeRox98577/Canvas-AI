@@ -1,6 +1,28 @@
 import SwiftUI
 import AppKit
 
+/// Style guidance so drafts read like a real student, not an AI essay.
+enum DraftStyle {
+    static let discussion = """
+    Write the reply in my voice as a high-school student. Rules, follow strictly:
+    - Match the prompt's requested length and format EXACTLY. If it says 3–5 sentences, write 3–5 sentences and stop.
+    - Plain, natural, conversational tone. Sound like a normal teenager, not a textbook or essay.
+    - First person ("I think…", "I'd tell them…").
+    - No headings, no numbered or bulleted lists, unless the prompt explicitly asks for a list.
+    - Do NOT restate the prompt or add meta lines like "To respond to this…" or "In conclusion".
+    - Do NOT end by asking the reader questions.
+    - Skip dramatic global statistics and clichés; be specific and genuine.
+    - Output ONLY the reply text — no preamble, no quotes around it.
+    """
+    static let assignment = """
+    Write this as my own submission, in a natural student voice.
+    - Follow the assignment's required length and format exactly.
+    - No meta-commentary about what you're doing; just write the response.
+    - Plain, clear, first-person where appropriate. Avoid obvious AI phrasing and filler.
+    - Output ONLY the response text.
+    """
+}
+
 enum ReaderTarget: Identifiable {
     case page(String, String)        // pageUrl, title
     case file(Int, String)           // fileId, title
@@ -254,8 +276,9 @@ struct DiscussionReader: View {
         busy = true; status = "Drafting… (the local model can take ~30–60s)"
         Task {
             do {
+                let prompt = HTMLText.plain(d.message ?? "")
                 let r: AgentResp = try await API.shared.post("/api/agent",
-                    AgentReq(goal: "Draft a thoughtful discussion reply for topic \(topicId). Prompt: \(d.message ?? "")",
+                    AgentReq(goal: "Draft my reply to this discussion.\n\nPROMPT:\n\(prompt)\n\n\(DraftStyle.discussion)",
                              course_id: c.id, course_name: c.name), timeout: 240)
                 if r.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     status = "The AI returned an empty draft — try again."
@@ -324,8 +347,9 @@ struct AssignmentReader: View {
         busy = true; status = "Drafting… (the local model can take ~30–60s)"
         Task {
             do {
+                let desc = HTMLText.plain(a.description ?? "")
                 let r: AgentResp = try await API.shared.post("/api/agent",
-                    AgentReq(goal: "Draft a response for the assignment '\(a.name ?? "")'. Description: \(a.description ?? "")",
+                    AgentReq(goal: "Draft my submission for the assignment '\(a.name ?? "")'.\n\nINSTRUCTIONS:\n\(desc)\n\n\(DraftStyle.assignment)",
                              course_id: c.id, course_name: c.name), timeout: 240)
                 if r.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     status = "The AI returned an empty draft — try again."
