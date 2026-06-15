@@ -136,6 +136,30 @@ session (no browser relaunch), so it's fast.
 `WRITE_MODE` in `.env` controls write behavior: `dry_run` (default, writes
 nothing), `confirm` (asks before each write), or `auto` (graded work still asks).
 
+## Native macOS app
+
+A full SwiftUI app lives in `macos/`. It launches the Python backend for you on
+start, talks to it over the local API, and renders everything natively (HTML via
+`AttributedString`, PDFs via PDFKit — no web view). Build it:
+
+```bash
+brew install xcodegen          # one-time
+cd macos
+xcodegen generate              # creates CanvasAI.xcodeproj from project.yml
+open CanvasAI.xcodeproj        # then press Run in Xcode
+```
+
+Requirements:
+- Finish the Python setup first (`setup.sh`, then `canvas-ai login`) so the
+  `.venv` and `.env` exist. The app defaults to `~/Canvas-AI`; if your project
+  is elsewhere, set the folder in the app's error screen → "Project Folder…".
+- The app spawns `.venv/bin/python -m uvicorn …` on launch and reuses an
+  already-running backend if one is up.
+
+Tabs mirror the web app — Modules, Due Dates, Discussions, Chat — with the same
+rules: the agent is read-only, posting a reply or submitting an assignment is an
+explicit action, and graded submissions show a confirm dialog.
+
 ## A note on responsible use
 
 This is built to help you **read, organize, and draft** your own coursework. It

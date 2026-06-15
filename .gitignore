@@ -21,3 +21,9 @@ venv/
 # Downloaded/extracted artifacts
 downloads/
 cache/
+
+# macOS app build artifacts
+macos/CanvasAI.xcodeproj/
+macos/DerivedData/
+macos/.build/
+*.xcuserstate
