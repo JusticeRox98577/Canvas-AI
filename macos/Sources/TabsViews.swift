@@ -15,30 +15,34 @@ struct ModulesView: View {
                 if loading { ProgressView().padding() }
                 if let error { Text(error).foregroundStyle(.secondary).padding() }
                 ForEach(modules) { m in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(m.name ?? "Module").font(.headline)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(m.name ?? "Module")
+                            .font(.title3.weight(.semibold))
+                            .padding(.bottom, 6)
                         ForEach(m.items ?? []) { it in
                             if it.type == "SubHeader" {
-                                Text(it.title ?? "").font(.subheadline).foregroundStyle(.secondary)
-                                    .padding(.top, 4)
+                                Text(it.title ?? "").font(.subheadline.weight(.medium))
+                                    .foregroundStyle(.secondary).padding(.top, 6)
                             } else {
                                 Button { if let t = target(it) { openReader(t) } } label: {
-                                    HStack(spacing: 10) {
-                                        Image(systemName: it.symbol).frame(width: 20)
+                                    HStack(spacing: 11) {
+                                        Image(systemName: it.symbol).frame(width: 22)
                                             .foregroundStyle(.tint)
-                                        Text(it.title ?? "Item")
+                                        Text(it.title ?? "Item").foregroundStyle(.primary)
                                         Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption2).foregroundStyle(.tertiary)
                                     }
                                     .contentShape(Rectangle())
-                                    .padding(.vertical, 6).padding(.horizontal, 8)
+                                    .padding(.vertical, 7).padding(.horizontal, 8)
                                 }
                                 .buttonStyle(.plain)
-                                .background(.quaternary.opacity(0.0001)) // hit area
                             }
                         }
                     }
-                    .padding(14)
-                    .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
+                    .padding(16)
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(.quaternary, lineWidth: 1))
                 }
             }
             .padding(16)
@@ -180,14 +184,15 @@ struct ChatView: View {
                 }
             }
             Divider()
-            HStack(alignment: .bottom, spacing: 8) {
-                TextField("Ask about \(course.name ?? "this course")…", text: $input, axis: .vertical)
-                    .textFieldStyle(.roundedBorder).lineLimit(1...4)
-                    .onSubmit(send)
+            HStack(spacing: 8) {
+                TextField("Ask about \(course.name ?? "this course")…", text: $input)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(send)            // Return submits the query
                 Button(action: send) { Text("Send") }
                     .buttonStyle(.borderedProminent).disabled(busy || input.isEmpty)
             }
             .padding(12)
+            .background(.regularMaterial)
         }
     }
 

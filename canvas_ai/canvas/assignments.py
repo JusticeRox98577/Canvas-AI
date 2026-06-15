@@ -10,8 +10,11 @@ from __future__ import annotations
 from canvas_ai.canvas.client import CanvasClient
 
 
-def list_assignments(client: CanvasClient, course_id: int) -> list[dict]:
-    return list(client.paginate(f"/courses/{course_id}/assignments"))
+def list_assignments(
+    client: CanvasClient, course_id: int, include: list[str] | None = None
+) -> list[dict]:
+    params = {"include[]": include} if include else {}
+    return list(client.paginate(f"/courses/{course_id}/assignments", **params))
 
 
 def get_assignment(client: CanvasClient, course_id: int, assignment_id: int) -> dict:

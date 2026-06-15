@@ -10,6 +10,7 @@ struct CanvasAIApp: App {
         WindowGroup {
             RootGate()
                 .environmentObject(backend)
+                .tint(.indigo)
                 .frame(minWidth: 1000, minHeight: 680)
                 .task { await backend.boot(repoPath: repoPath) }
         }

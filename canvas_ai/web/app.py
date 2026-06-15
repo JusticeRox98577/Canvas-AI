@@ -116,9 +116,10 @@ def api_dashboard(course_id: int | None = None) -> list[dict]:
             for course in courses.list_courses(c):
                 if course_id and course["id"] != course_id:
                     continue
-                for a in assignments.list_assignments(c, course["id"]):
+                for a in assignments.list_assignments(c, course["id"], include=["submission"]):
                     if a.get("due_at"):
                         sub = a.get("submission") or {}
+                        submitted = bool(sub.get("submitted_at")) or sub.get("workflow_state") in {"submitted", "graded"}
                         rows.append({
                             "course": course.get("name"),
                             "course_id": course["id"],
@@ -126,7 +127,7 @@ def api_dashboard(course_id: int | None = None) -> list[dict]:
                             "name": a.get("name"),
                             "due_at": a.get("due_at"),
                             "html_url": a.get("html_url"),
-                            "submitted": bool(sub.get("submitted_at")),
+                            "submitted": submitted,
                         })
         rows.sort(key=lambda r: r["due_at"])
         return rows

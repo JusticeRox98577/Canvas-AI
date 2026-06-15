@@ -74,11 +74,12 @@ struct ContentView: View {
             List(selection: $selected) {
                 Section("Courses") {
                     ForEach(courses) { c in
-                        Text(c.name ?? "Course \(c.id)").tag(c)
+                        Label(c.name ?? "Course \(c.id)", systemImage: "book.closed")
+                            .lineLimit(2).tag(c)
                     }
                 }
             }
-            .navigationSplitViewColumnWidth(min: 220, ideal: 250)
+            .navigationSplitViewColumnWidth(min: 230, ideal: 260)
         } detail: {
             if let course = selected {
                 VStack(spacing: 0) {
@@ -87,7 +88,8 @@ struct ContentView: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
-                    .padding(12)
+                    .frame(maxWidth: 460)
+                    .padding(.vertical, 12).padding(.horizontal, 16)
                     Divider()
                     Group {
                         switch tab {
