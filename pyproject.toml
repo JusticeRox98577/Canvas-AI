@@ -1,0 +1,30 @@
+[project]
+name = "canvas-ai"
+version = "0.1.0"
+description = "A local-first AI assistant for Canvas LMS: read modules and embedded content, draft and (with confirmation) post."
+requires-python = ">=3.10"
+dependencies = [
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+    "beautifulsoup4>=4.12",
+    "pdfplumber>=0.11",
+    "python-docx>=1.1",
+    "rich>=13.7",
+]
+
+[project.optional-dependencies]
+# Browser fallback for embedded iframe/LTI content
+browser = ["playwright>=1.44"]
+# Cloud brain (optional; off by default)
+anthropic = ["anthropic>=0.40"]
+dev = ["pytest>=8.0", "ruff>=0.5"]
+
+[project.scripts]
+canvas-ai = "canvas_ai.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["canvas_ai*"]

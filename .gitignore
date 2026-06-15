@@ -1,0 +1,20 @@
+# Secrets / config
+.env
+config/*.local.*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Tooling
+.DS_Store
+
+# Downloaded/extracted artifacts
+downloads/
+cache/
