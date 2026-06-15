@@ -29,6 +29,12 @@ canvas-ai login        # opens a window; log in, it detects success, saves sessi
 Your saved session lives in `.canvas_profile/` (git-ignored — it holds your
 cookies, so never commit or share it).
 
+**District uses Microsoft 365 / Entra SSO?** Supported. On `canvas-ai login`,
+Canvas redirects to the Microsoft sign-in; complete it (with MFA) in the window
+and pick *"Stay signed in: Yes"*. The login uses your real installed Chrome when
+available, since Microsoft can reject automated browsers. Install Chrome if you
+hit a "browser doesn't meet security requirements" message.
+
 ## How it works
 
 ```

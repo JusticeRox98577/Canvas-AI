@@ -46,11 +46,29 @@ class BrowserCanvasClient:
         self._headless = headless
         sync_playwright = _require_playwright()
         self._pw = sync_playwright().start()
-        self._ctx = self._pw.chromium.launch_persistent_context(
-            self._profile_dir, headless=headless
-        )
+        self._ctx = self._launch(headless)
         # context.request shares cookies with the browser context automatically.
         self._req = self._ctx.request
+
+    def _launch(self, headless: bool):
+        """Launch the persistent context, tuned to survive Microsoft 365 SSO.
+
+        Microsoft's sign-in often rejects Playwright's bundled Chromium and
+        flags the automation banner, so we prefer real installed Chrome and
+        disable the AutomationControlled feature. Falls back to plain Chromium
+        if Chrome isn't installed.
+        """
+        opts = dict(
+            user_data_dir=self._profile_dir,
+            headless=headless,
+            args=["--disable-blink-features=AutomationControlled"],
+            ignore_default_args=["--enable-automation"],
+        )
+        try:
+            return self._pw.chromium.launch_persistent_context(channel="chrome", **opts)
+        except Exception:
+            # Chrome not installed -> use the bundled Chromium.
+            return self._pw.chromium.launch_persistent_context(**opts)
 
     # -- lifecycle -------------------------------------------------------
     def close(self) -> None:
@@ -141,7 +159,7 @@ class BrowserCanvasClient:
         return None
 
 
-def interactive_login(config: Config, *, timeout_s: int = 300) -> None:
+def interactive_login(config: Config, *, timeout_s: int = 600) -> None:
     """Open a visible browser so the user can log in; persist the session.
 
     Polls until Canvas reports an authenticated user, then closes. After this,
@@ -155,8 +173,12 @@ def interactive_login(config: Config, *, timeout_s: int = 300) -> None:
         page = client._ctx.pages[0] if client._ctx.pages else client._ctx.new_page()
         page.goto(config.canvas_base_url)
         console.print(
-            "[bold]A browser window opened.[/bold] Log into Canvas there "
-            "(including any district SSO / MFA). I'll detect when you're in."
+            "[bold]A browser window opened.[/bold] Sign in there:\n"
+            "  1. Canvas will redirect you to your district's Microsoft 365 login.\n"
+            "  2. Enter your school email + password and complete MFA.\n"
+            "  3. If Microsoft asks [italic]\"Stay signed in?\"[/italic], choose [bold]Yes[/bold] "
+            "so you don't have to repeat this often.\n"
+            "I'll detect automatically when you land back in Canvas."
         )
         deadline = time.time() + timeout_s
         while time.time() < deadline:
