@@ -5,9 +5,10 @@ modules and the content embedded inside pages (PDFs, slides, iframed videos/LTI
 tools), and — with your confirmation — draft and post discussion replies or
 submit work.
 
-The "brain" runs **locally via [Ollama](https://ollama.com)** by default, so no
-data leaves your machine except the calls to your own Canvas server. An optional
-cloud brain (Anthropic) can be enabled if you want stronger reasoning.
+The "brain" runs on **your Claude Pro/Max subscription** by default (through the
+Claude Code CLI), so usage counts against your chat plan — **not** API credits.
+No Ollama, no API keys. A local model (Ollama) or the Anthropic API remain
+available as alternatives.
 
 ## Authentication (no token? no problem)
 
@@ -21,19 +22,18 @@ Many K-12 districts disable personal access tokens. Canvas-AI handles both cases
 - **`AUTH_MODE=token`:** use a personal access token (Canvas → Account →
   Settings → **+ New Access Token**) if your school allows them.
 
-### Drafting with Claude (subscription vs. API)
+### Which brain (subscription vs. local vs. API)
 
-Drafting/explaining can use a different (better) model than chat via
-`DRAFT_PROVIDER`:
+Both chat (`LLM_PROVIDER`) and drafting (`DRAFT_PROVIDER`) default to
+`claude_code`:
 
-- `ollama` — local, free (default).
-- `claude_code` — uses your **Claude Pro/Max subscription** through the Claude
-  Code CLI (counts against your chat plan, *not* API credits). Install it and
-  log in once: `curl -fsSL https://claude.ai/install.sh | bash` then `claude`.
-- `anthropic` — the Anthropic **API** (separate pay-as-you-go credits + a
+- `claude_code` — your **Claude Pro/Max subscription** via the Claude Code CLI
+  (counts against your chat plan, *not* API credits). **Default.** Install it
+  and log in once: on Windows `irm https://claude.ai/install.ps1 | iex`, then
+  run `claude` and choose Subscription login.
+- `ollama` — a local, free model (needs Ollama installed + a model pulled).
+- `anthropic` — the Anthropic **API** (separate pay-as-you-go credits + an
   `ANTHROPIC_API_KEY`).
-
-Chat/reads stay on `LLM_PROVIDER` (default local) so tool-use stays free.
 
 Browser mode needs the browser extra:
 ```bash
@@ -65,9 +65,9 @@ You ──▶ Agent loop ──▶ Canvas REST API ──▶ your Canvas
 - **Read** uses the official Canvas REST API (reliable, structured).
 - **Embedded content** is discovered from page HTML, then resolved: Canvas files
   are downloaded + parsed; iframes/LTI tools fall back to a headless browser.
-- **Writes** always pass through a confirmation gate (`canvas_ai/agent/gates.py`).
-  Graded submissions are forced to require explicit human approval and can never
-  be auto-submitted.
+- **Writes** pass through a confirmation gate (`canvas_ai/agent/gates.py`).
+  Graded submissions require explicit human approval unless you opt into
+  `AUTO_SUBMIT=true` (see [Doing assignments directly](#doing-assignments-directly)).
 
 ## Setup (Windows, one command)
 
@@ -79,22 +79,19 @@ cd Canvas-AI
 powershell -ExecutionPolicy Bypass -File setup.ps1
 ```
 
-`setup.ps1` creates a virtual environment, installs Canvas-AI + the browser
-extra, installs Ollama (via winget) and pulls **llama3.1:8b**, and creates your
-`.env`. The 8B model runs fully on a 10GB GPU (e.g. RTX 3080) with VRAM to
-spare, so your PC stays usable.
+`setup.ps1` creates a virtual environment, installs Canvas-AI + the browser and
+desktop extras, installs the **Claude Code CLI**, and creates your `.env`
+already set to use your Claude subscription. No Ollama, no API keys.
 
 Then, in a new terminal from the project folder:
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
+claude                # log in ONCE -> choose Subscription (Pro/Max)
 notepad .env          # set CANVAS_BASE_URL to your school's Canvas URL
 canvas-ai login       # sign in via Microsoft 365 in the browser window
-canvas-ai courses     # confirm it works
+canvas-ai app         # open the native Windows app
 ```
-
-Ollama runs as a background service on Windows after install, so there's no
-separate `ollama serve` step.
 
 ## Usage
 

@@ -20,6 +20,44 @@ from canvas_ai.config import Config
 from canvas_ai.llm.base import LLMResponse
 
 
+# Claude has no structured tool channel over `claude -p`, so we describe the
+# tools in the prompt and ask it to emit a JSON call. The agent loop recovers
+# these with extract_text_tool_calls().
+def _tool_instructions(tools: list[dict[str, Any]]) -> str:
+    lines = [
+        "You can call tools to fetch real data before answering. Available tools:",
+    ]
+    for t in tools:
+        fn = t.get("function", t)
+        params = fn.get("parameters", {}).get("properties", {})
+        sig = ", ".join(params.keys())
+        lines.append(f"- {fn.get('name')}({sig}): {fn.get('description', '')}")
+    lines += [
+        "",
+        "To CALL a tool, reply with ONLY a JSON object and nothing else:",
+        '  {"name": "<tool>", "parameters": {<args>}}',
+        "You will then be given the tool result and can call another tool.",
+        "When you have everything you need, reply with your final answer as plain",
+        "text (no JSON). Never invent data you did not get from a tool.",
+    ]
+    return "\n".join(lines)
+
+
+def _format_convo(messages: list[dict[str, Any]]) -> str:
+    parts: list[str] = []
+    for m in messages:
+        role = m.get("role")
+        content = m.get("content", "")
+        if role == "user":
+            parts.append(f"User: {content}")
+        elif role == "assistant":
+            if content:
+                parts.append(f"Assistant: {content}")
+        elif role == "tool":
+            parts.append(f"Tool result ({m.get('name', '')}): {content}")
+    return "\n\n".join(parts)
+
+
 def _find_claude() -> str | None:
     found = shutil.which("claude")
     if found:
@@ -53,9 +91,9 @@ class ClaudeCodeProvider:
                 "  claude"
             )
         system = "\n\n".join(m["content"] for m in messages if m.get("role") == "system")
-        convo = "\n\n".join(
-            m["content"] for m in messages if m.get("role") in {"user", "assistant", "tool"}
-        )
+        if tools:
+            system = (system + "\n\n" + _tool_instructions(tools)).strip()
+        convo = _format_convo(messages)
 
         args = [self._bin, "-p", convo]
         if system:
