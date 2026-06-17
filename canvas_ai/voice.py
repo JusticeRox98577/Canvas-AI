@@ -10,6 +10,26 @@ Two levers:
 from __future__ import annotations
 
 import os
+import re
+
+# Filler openers that scream "AI". Stripped from the start of any draft.
+_LEADING_FILLER = re.compile(
+    r"^(honestly|look|listen|to be honest|in all honesty|well,)[,!]?\s+",
+    re.IGNORECASE,
+)
+
+
+def clean_output(text: str | None) -> str:
+    """Last-mile fixes for AI tells the model emits despite instructions:
+    no em/en dashes, and no 'Honestly,'-style filler opener."""
+    if not text:
+        return ""
+    t = text.strip()
+    t = t.replace("—", "-").replace("–", "-")
+    t = _LEADING_FILLER.sub("", t, count=1)
+    if t and t[0].islower():
+        t = t[0].upper() + t[1:]
+    return t.strip()
 
 ANTI_AI_RULES = """Write like a real student typing this themselves — NOT like an AI.
 - First person, natural, a little informal. Use contractions (I'm, don't, it's).

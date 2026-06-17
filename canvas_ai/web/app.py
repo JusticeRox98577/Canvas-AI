@@ -322,7 +322,7 @@ def api_do(body: DoIn) -> dict:
                  {"role": "user", "content": prompt}],
                 tools=None,
             )
-            draft = (resp.text or "").strip()
+            draft = voice.clean_output(resp.text)
             if not draft:
                 raise HTTPException(status_code=502, detail="The model returned an empty draft.")
 
@@ -378,7 +378,7 @@ def _quiz_choose(brain, q: dict) -> tuple[dict | None, str]:
         resp = brain.chat(
             [{"role": "system", "content": DO_SYSTEM()},
              {"role": "user", "content": prompt}], tools=None)
-        ans = (resp.text or "").strip()
+        ans = voice.clean_output(resp.text)
         return ({"answer": ans}, ans[:300]) if ans else (None, "")
 
     if qtype in quizzes.NUMERIC_TYPES:
@@ -524,7 +524,7 @@ def api_draft(body: DraftIn) -> dict:
              {"role": "user", "content": body.goal}],
             tools=None,
         )
-        return {"answer": resp.text}
+        return {"answer": voice.clean_output(resp.text)}
     return _guard(go)
 
 
