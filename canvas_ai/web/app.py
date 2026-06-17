@@ -10,6 +10,7 @@ explicit confirm flag.
 from __future__ import annotations
 
 import os
+import re
 import sys
 
 import httpx
@@ -18,7 +19,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from canvas_ai.canvas import assignments, courses, discussions, files as files_api, pages
+from canvas_ai.canvas import assignments, courses, discussions, files as files_api, pages, quizzes
 from canvas_ai.canvas.cookie_client import CookieCanvasClient, SessionExpired
 from canvas_ai.extract import documents
 from canvas_ai.config import Config
@@ -336,6 +337,123 @@ def api_do(body: DoIn) -> dict:
                     "submitted_at": sub.get("submitted_at"),
                 }
             return result
+
+    return _guard(go)
+
+
+# -- do it for me: quizzes (Classic quizzes only) ------------------------
+def _quiz_choose(brain, q: dict) -> tuple[dict | None, str]:
+    """Ask the brain to answer one quiz question. Returns (answer_payload, display)."""
+    qtype = q.get("question_type")
+    text = _strip_html(q.get("question_text", ""))
+    answers = q.get("answers", []) or []
+
+    def opt_text(a: dict) -> str:
+        return _strip_html(a.get("text") or a.get("html") or a.get("comments") or "")
+
+    if qtype in quizzes.CHOICE_TYPES or qtype in quizzes.MULTI_TYPES:
+        multi = qtype in quizzes.MULTI_TYPES
+        opts = "\n".join(f"[{a['id']}] {opt_text(a)}" for a in answers)
+        ask = "Choose ALL correct option ids" if multi else "Choose the single best option id"
+        prompt = (f"Question: {text}\n\nOptions:\n{opts}\n\n{ask}. "
+                  "Reply with ONLY the id number(s), comma-separated. Nothing else.")
+        resp = brain.chat(
+            [{"role": "system", "content": "You answer quiz questions correctly and concisely."},
+             {"role": "user", "content": prompt}], tools=None)
+        valid = {a["id"] for a in answers}
+        ids = [int(n) for n in re.findall(r"\d+", resp.text or "") if int(n) in valid]
+        if not multi:
+            ids = ids[:1]
+        if not ids:
+            return None, ""
+        display = "; ".join(opt_text(a) for a in answers if a["id"] in ids)
+        return {"answer": ids if multi else ids[0]}, display
+
+    if qtype in quizzes.TEXT_TYPES:
+        prompt = f"Question: {text}\n\nWrite the answer the question asks for."
+        resp = brain.chat(
+            [{"role": "system", "content": DO_SYSTEM},
+             {"role": "user", "content": prompt}], tools=None)
+        ans = (resp.text or "").strip()
+        return ({"answer": ans}, ans[:300]) if ans else (None, "")
+
+    if qtype in quizzes.NUMERIC_TYPES:
+        prompt = f"Question: {text}\n\nReply with ONLY the numeric answer."
+        resp = brain.chat(
+            [{"role": "system", "content": "You answer quiz questions correctly and concisely."},
+             {"role": "user", "content": prompt}], tools=None)
+        m = re.search(r"-?\d+(?:\.\d+)?", resp.text or "")
+        return ({"answer": m.group(0)}, m.group(0)) if m else (None, "")
+
+    return None, ""  # unsupported question type -> leave blank
+
+
+class QuizDoIn(BaseModel):
+    course_id: int
+    quiz_id: int
+
+
+@app.post("/api/quiz/answer")
+def api_quiz_answer(body: QuizDoIn) -> dict:
+    """Start the attempt, let the AI answer every supported question, and save
+    those answers — but do NOT submit. The user reviews, then calls /submit."""
+    global _draft_brain
+    if _draft_brain is None:
+        _draft_brain = get_provider(_config, _config.draft_provider)
+
+    def go():
+        with client() as c:
+            sub = quizzes.start_submission(c, body.course_id, body.quiz_id)
+            sid = sub["id"]
+            attempt = sub.get("attempt")
+            token = sub.get("validation_token")
+            qs = quizzes.get_questions(c, sid)
+
+            answered: list[dict] = []
+            review: list[dict] = []
+            skipped: list[dict] = []
+            for q in qs:
+                payload, display = _quiz_choose(_draft_brain, q)
+                qtext = _strip_html(q.get("question_text", ""))[:300]
+                if payload and payload.get("answer") not in (None, "", []):
+                    answered.append({"id": q["id"], **payload})
+                    review.append({"question": qtext, "type": q.get("question_type"), "answer": display})
+                else:
+                    skipped.append({"question": qtext, "type": q.get("question_type")})
+
+            if answered:
+                quizzes.save_answers(c, sid, attempt, token, answered)
+            return {"submission_id": sid, "total": len(qs), "answered": review, "skipped": skipped}
+
+    return _guard(go)
+
+
+class QuizSubmitIn(BaseModel):
+    course_id: int
+    quiz_id: int
+    submission_id: int
+    confirm: bool = False
+
+
+@app.post("/api/quiz/submit")
+def api_quiz_submit(body: QuizSubmitIn) -> dict:
+    """Turn in the quiz. Requires confirm=true (the UI dialog) or AUTO_SUBMIT."""
+    if not (_config.auto_submit or body.confirm):
+        raise HTTPException(status_code=400, detail="Submitting a quiz requires confirm=true or AUTO_SUBMIT=true.")
+
+    def go():
+        with client() as c:
+            sub = quizzes.current_submission(c, body.course_id, body.quiz_id)
+            quizzes.complete(
+                c, body.course_id, body.quiz_id, body.submission_id,
+                sub.get("attempt"), sub.get("validation_token"),
+            )
+            done = quizzes.current_submission(c, body.course_id, body.quiz_id)
+            return {
+                "completed": True,
+                "score": done.get("score") if done.get("score") is not None else done.get("kept_score"),
+                "workflow_state": done.get("workflow_state"),
+            }
 
     return _guard(go)
 

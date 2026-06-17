@@ -162,6 +162,15 @@ This also lets the chat agent submit graded work on its own. It's off by default
 because graded submissions are high-stakes — this is your account and your
 coursework, so check your school's academic-integrity policy before enabling it.
 
+### Quizzes
+
+Classic quizzes have a **"Do quiz with AI"** button: it starts the attempt, has
+the AI answer every supported question (multiple choice, true/false,
+multiple-answer, short answer, numerical, essay), and shows the answers for your
+review. Nothing is turned in until you click **Submit** (or immediately, if
+`AUTO_SUBMIT=true`). **New Quizzes** (the LTI-based engine) are not reachable via
+the Canvas API and can't be automated.
+
 ## A note on responsible use
 
 This is built to help you **read, organize, and draft** your own coursework. It

@@ -158,11 +158,14 @@ async function openQuiz(quizId, title) {
     ].filter(Boolean).join(" · ");
     node.appendChild(el("p", "muted", meta));
     node.appendChild(el("p", "muted",
-      "Quizzes are taken in Canvas — the AI won't auto-answer graded work. " +
-      "Use Study mode below to actually learn the material."));
+      "“Do quiz with AI” starts an attempt and fills in answers, then shows them " +
+      "for your review — nothing is turned in until you click Submit. Classic " +
+      "quizzes only (New Quizzes can't be automated)."));
     const row = el("div", "row");
+    const doBtn = el("button", "primary", appConfig.auto_submit ? "Do quiz for me ✨" : "Do quiz with AI…");
     const study = el("button", "ghost", "Study this with AI");
-    const open = el("button", "primary", "Open quiz in Canvas ↗");
+    const open = el("button", "ghost", "Open quiz in Canvas ↗");
+    doBtn.onclick = () => doQuiz(quizId, q.title, node, doBtn);
     study.onclick = async () => {
       study.disabled = true; study.textContent = "Thinking…";
       try {
@@ -173,7 +176,7 @@ async function openQuiz(quizId, title) {
       study.disabled = false; study.textContent = "Study this with AI";
     };
     open.onclick = () => { if (q.html_url) window.open(q.html_url, "_blank"); };
-    row.appendChild(study); row.appendChild(open);
+    row.appendChild(doBtn); row.appendChild(study); row.appendChild(open);
     node.appendChild(row);
     showReaderNode(q.title || title || "Quiz", node);
   } catch (e) { showReader("Error", `<p class="muted">${escapeHtml(e.message)}</p>`); }
@@ -216,6 +219,51 @@ async function openAssignment(aid, title) {
     body.appendChild(row);
     showReaderNode(a.name || title || "Assignment", body);
   } catch (e) { showReader("Error", `<p class="muted">${e.message}</p>`); }
+}
+
+// Quiz: start an attempt, let the AI answer, show answers for review, then
+// submit only on confirm (or immediately when AUTO_SUBMIT is on).
+async function doQuiz(quizId, title, node, btn) {
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = "Answering…";
+  try {
+    const r = await api("/api/quiz/answer", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ course_id: activeCourse.id, quiz_id: quizId }) });
+
+    const panel = el("div", "entry");
+    panel.appendChild(el("p", null, `<strong>AI answers (${r.answered.length}/${r.total})</strong>`));
+    r.answered.forEach((a, i) => {
+      const item = el("div", "item");
+      item.appendChild(el("span", "kind", a.type ? a.type.replace(/_question$/, "") : ""));
+      item.appendChild(el("span", null, `<strong>Q${i + 1}.</strong> ${escapeHtml(a.question)} <br/>→ ${escapeHtml(a.answer)}`));
+      panel.appendChild(item);
+    });
+    if (r.skipped && r.skipped.length) {
+      panel.appendChild(el("p", "muted", `Couldn't auto-answer ${r.skipped.length} question(s) (unsupported type) — answer those in Canvas before submitting.`));
+    }
+    const subBtn = el("button", "primary", appConfig.auto_submit ? "Submitting…" : "Submit quiz…");
+    subBtn.onclick = () => submitQuiz(quizId, title, r.submission_id);
+    panel.appendChild(subBtn);
+    node.appendChild(panel);
+
+    if (appConfig.auto_submit) {
+      await submitQuiz(quizId, title, r.submission_id, true);
+    }
+  } catch (e) { alert(e.message); }
+  btn.disabled = false; btn.textContent = label;
+}
+
+async function submitQuiz(quizId, title, submissionId, skipModal) {
+  const send = async () => {
+    const res = await api("/api/quiz/submit", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ course_id: activeCourse.id, quiz_id: quizId, submission_id: submissionId, confirm: true }) });
+    const score = res.score != null ? `Score: ${res.score}` : "Submitted.";
+    showReader("Quiz submitted", `<p class="muted">Turned in "${escapeHtml(title)}". ${escapeHtml(score)}</p>`);
+  };
+  if (skipModal) { await send(); return; }
+  openModal("Submit this quiz?",
+    `You are about to TURN IN "${title}" as your graded attempt. Review the answers above first.`,
+    async () => { await send(); closeModal(); });
 }
 
 // One-click: AI writes the whole submission, then submits it. When AUTO_SUBMIT
