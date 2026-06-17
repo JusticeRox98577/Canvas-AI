@@ -95,14 +95,24 @@ class ClaudeCodeProvider:
             system = (system + "\n\n" + _tool_instructions(tools)).strip()
         convo = _format_convo(messages)
 
-        args = [self._bin, "-p", convo]
-        if system:
-            args += ["--append-system-prompt", system]
+        # Send the prompt over stdin, not as an argv string: Windows caps the
+        # command line at ~32k chars and course context blows past that.
+        prompt = (system + "\n\n----\n\n" + convo).strip() if system else convo
+
+        args = [self._bin, "-p"]
         if self._model:
             args += ["--model", self._model]
 
         try:
-            res = subprocess.run(args, capture_output=True, text=True, timeout=300)
+            res = subprocess.run(
+                args,
+                input=prompt,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=300,
+            )
         except subprocess.TimeoutExpired:
             raise RuntimeError("Claude Code timed out.")
         if res.returncode != 0:
