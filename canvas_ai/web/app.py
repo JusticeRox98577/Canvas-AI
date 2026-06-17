@@ -26,6 +26,7 @@ from canvas_ai.config import Config
 from canvas_ai.agent.loop import SYSTEM_PROMPT, run as run_agent
 from canvas_ai.agent.tools import Toolbox
 from canvas_ai.llm import get_provider
+from canvas_ai import voice
 
 def _static_dir() -> str:
     # When frozen by PyInstaller, data files live under sys._MEIPASS.
@@ -261,14 +262,17 @@ def api_submit(body: SubmitIn) -> dict:
 
 
 # -- do it for me: draft + (optionally) submit in one step ---------------
-DO_SYSTEM = (
+DO_BASE = (
     "You are completing a homework assignment as the student. Write the full "
     "submission that directly answers what the assignment asks for. Output ONLY "
-    "the finished work itself — no preamble, no headings like 'Submission', no "
-    "notes to the teacher, and never mention being an AI. Write in a natural, "
-    "competent student voice and match any length, format, or question structure "
-    "the prompt specifies."
+    "the finished work itself: no preamble, no headings like 'Submission', no "
+    "notes to the teacher. Match any length, format, or question structure the "
+    "prompt specifies."
 )
+
+
+def DO_SYSTEM() -> str:
+    return voice.style_system(DO_BASE)
 
 
 def _strip_html(html: str) -> str:
@@ -314,7 +318,7 @@ def api_do(body: DoIn) -> dict:
                 + "\n\nWrite the complete submission now."
             )
             resp = _draft_brain.chat(
-                [{"role": "system", "content": DO_SYSTEM},
+                [{"role": "system", "content": DO_SYSTEM()},
                  {"role": "user", "content": prompt}],
                 tools=None,
             )
@@ -372,7 +376,7 @@ def _quiz_choose(brain, q: dict) -> tuple[dict | None, str]:
     if qtype in quizzes.TEXT_TYPES:
         prompt = f"Question: {text}\n\nWrite the answer the question asks for."
         resp = brain.chat(
-            [{"role": "system", "content": DO_SYSTEM},
+            [{"role": "system", "content": DO_SYSTEM()},
              {"role": "user", "content": prompt}], tools=None)
         ans = (resp.text or "").strip()
         return ({"answer": ans}, ans[:300]) if ans else (None, "")
@@ -494,11 +498,10 @@ def _course_outline(c: CookieCanvasClient, course_id: int, course_name: str | No
     return text
 
 
-DRAFT_SYSTEM = (
-    "You are a writing assistant helping a student draft text they will review "
-    "and edit. Output ONLY the requested text — no preamble, no explanation, and "
-    "never mention tools, functions, APIs, or that you are an AI. Follow the "
-    "requested voice, length, and format exactly."
+DRAFT_BASE = (
+    "You are helping a student draft text they will review and edit. Output ONLY "
+    "the requested text: no preamble, no explanation, and never mention tools, "
+    "functions, APIs, or that you are an AI. Follow the requested length and format."
 )
 
 
@@ -517,7 +520,7 @@ def api_draft(body: DraftIn) -> dict:
 
     def go():
         resp = _draft_brain.chat(
-            [{"role": "system", "content": DRAFT_SYSTEM},
+            [{"role": "system", "content": voice.style_system(DRAFT_BASE)},
              {"role": "user", "content": body.goal}],
             tools=None,
         )

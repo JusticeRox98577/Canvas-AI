@@ -207,8 +207,8 @@ async function openAssignment(aid, title) {
     draftBtn.onclick = async () => {
       draftBtn.disabled = true; draftBtn.textContent = "Drafting…";
       try {
-        const r = await api("/api/agent", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: agentBody(`Draft a response for the assignment "${a.name}". Assignment description: ${strip(a.description)}`) });
+        const r = await api("/api/draft", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ goal: `Write my response to this assignment, in first person. Assignment: "${a.name}". Instructions: ${strip(a.description)}` }) });
         ta.value = r.answer;
       } catch (e) { alert(e.message); }
       draftBtn.disabled = false; draftBtn.textContent = "Draft with AI";
@@ -379,8 +379,8 @@ async function openDiscussion(tid) {
     draftBtn.onclick = async () => {
       draftBtn.disabled = true; draftBtn.textContent = "Drafting…";
       try {
-        const r = await api("/api/agent", { method: "POST", headers: { "Content-Type": "application/json" },
-          body: agentBody(`Draft a thoughtful discussion reply for topic ${tid}. Prompt: ${strip(d.message)}`) });
+        const r = await api("/api/draft", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ goal: `Write my initial discussion post (about 150-220 words) answering this prompt in first person. Prompt: ${strip(d.message)}` }) });
         ta.value = r.answer;
       } catch (e) { alert(e.message); }
       draftBtn.disabled = false; draftBtn.textContent = "Draft with AI";

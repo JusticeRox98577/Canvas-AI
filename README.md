@@ -146,6 +146,24 @@ the project folder) so it can find your settings and saved login. See
 
 Tabs mirror the web app — Modules, Due Dates, Discussions, Chat.
 
+## Make it sound like you
+
+Everything Canvas-AI drafts (assignment responses, discussion posts, quiz
+essays) is written to avoid the usual "AI tells" — no em dashes, no "Honestly,",
+no forced three-bullet lists, plain first-person wording.
+
+To go further and match **your own** voice, give it a writing sample:
+
+```powershell
+copy voice.example.txt voice.txt
+notepad voice.txt        # paste a couple paragraphs of your real writing
+```
+
+The model reads `voice.txt` and imitates your word choices, sentence length, and
+tone. The file stays on your computer and is git-ignored. (You can also set
+`WRITING_SAMPLE` in `.env` instead.) Edits take effect on the next draft — no
+restart needed.
+
 ## Doing assignments directly
 
 Each assignment has a **"Do it for me"** button that uses the AI to write the
