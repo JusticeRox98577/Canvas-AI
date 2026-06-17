@@ -10,6 +10,7 @@ explicit confirm flag.
 from __future__ import annotations
 
 import os
+import sys
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -25,7 +26,17 @@ from canvas_ai.agent.loop import SYSTEM_PROMPT, run as run_agent
 from canvas_ai.agent.tools import Toolbox
 from canvas_ai.llm import get_provider
 
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+def _static_dir() -> str:
+    # When frozen by PyInstaller, data files live under sys._MEIPASS.
+    base = getattr(sys, "_MEIPASS", None)
+    if base:
+        bundled = os.path.join(base, "canvas_ai", "web", "static")
+        if os.path.isdir(bundled):
+            return bundled
+    return os.path.join(os.path.dirname(__file__), "static")
+
+
+STATIC_DIR = _static_dir()
 
 app = FastAPI(title="Canvas-AI")
 _config = Config.load()
@@ -60,6 +71,16 @@ def status() -> dict:
         return {"authenticated": True, "name": me.get("name"), "base_url": _config.canvas_base_url}
     except Exception:  # noqa: BLE001
         return {"authenticated": False, "base_url": _config.canvas_base_url}
+
+
+@app.get("/api/config")
+def api_config() -> dict:
+    """Front-end-visible settings so the UI can adapt (e.g. enable direct submit)."""
+    return {
+        "write_mode": _config.write_mode,
+        "auto_submit": _config.auto_submit,
+        "draft_provider": _config.draft_provider,
+    }
 
 
 # -- reads ----------------------------------------------------------------
@@ -235,6 +256,87 @@ def api_submit(body: SubmitIn) -> dict:
     def go():
         with client() as c:
             return assignments.submit_text(c, body.course_id, body.assignment_id, body.body)
+    return _guard(go)
+
+
+# -- do it for me: draft + (optionally) submit in one step ---------------
+DO_SYSTEM = (
+    "You are completing a homework assignment as the student. Write the full "
+    "submission that directly answers what the assignment asks for. Output ONLY "
+    "the finished work itself — no preamble, no headings like 'Submission', no "
+    "notes to the teacher, and never mention being an AI. Write in a natural, "
+    "competent student voice and match any length, format, or question structure "
+    "the prompt specifies."
+)
+
+
+def _strip_html(html: str) -> str:
+    from canvas_ai.extract.html import parse_page_html
+
+    try:
+        return parse_page_html(html or "").text.strip()
+    except Exception:  # noqa: BLE001
+        return (html or "").strip()
+
+
+class DoIn(BaseModel):
+    course_id: int
+    assignment_id: int
+    submit: bool = True
+    confirm: bool = False
+
+
+@app.post("/api/assignment/do")
+def api_do(body: DoIn) -> dict:
+    """Read an assignment, draft a complete submission, and (if allowed) submit it.
+
+    Submission happens when AUTO_SUBMIT is enabled in .env, or when the caller
+    passes confirm=true (the UI's confirm dialog). With submit=false it only
+    drafts so the user can review/edit first.
+    """
+    global _draft_brain
+    if _draft_brain is None:
+        _draft_brain = get_provider(_config, _config.draft_provider)
+
+    def go():
+        with client() as c:
+            a = assignments.get_assignment(c, body.course_id, body.assignment_id)
+            name = a.get("name") or "this assignment"
+            desc = _strip_html(a.get("description", ""))[:6000]
+            points = a.get("points_possible")
+
+            prompt = (
+                f'Assignment title: "{name}".\n'
+                + (f"Worth {points} points.\n" if points is not None else "")
+                + "Assignment instructions:\n"
+                + (desc or "(no description was provided)")
+                + "\n\nWrite the complete submission now."
+            )
+            resp = _draft_brain.chat(
+                [{"role": "system", "content": DO_SYSTEM},
+                 {"role": "user", "content": prompt}],
+                tools=None,
+            )
+            draft = (resp.text or "").strip()
+            if not draft:
+                raise HTTPException(status_code=502, detail="The model returned an empty draft.")
+
+            result = {"assignment": name, "draft": draft, "submitted": False}
+            if body.submit:
+                if not (_config.auto_submit or body.confirm):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Submission requires confirm=true or AUTO_SUBMIT=true in .env.",
+                    )
+                sub = assignments.submit_text(c, body.course_id, body.assignment_id, draft)
+                result["submitted"] = True
+                result["submission"] = {
+                    "id": sub.get("id"),
+                    "workflow_state": sub.get("workflow_state"),
+                    "submitted_at": sub.get("submitted_at"),
+                }
+            return result
+
     return _guard(go)
 
 

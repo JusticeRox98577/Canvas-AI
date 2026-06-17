@@ -96,38 +96,12 @@ canvas-ai courses     # confirm it works
 Ollama runs as a background service on Windows after install, so there's no
 separate `ollama serve` step.
 
-## Setup (macOS, one command)
-
-In Terminal, from where you want it installed:
-
-```bash
-git clone https://github.com/JusticeRox98577/Canvas-AI.git
-cd Canvas-AI
-bash setup.sh
-```
-
-`setup.sh` creates a virtual environment, installs Canvas-AI + the browser
-extra, installs Ollama (via Homebrew), starts the Ollama server, pulls
-**llama3.1:8b**, and creates your `.env`. On Apple Silicon the 8B model runs on
-the GPU via Metal using unified memory (~6GB), comfortable on 16GB+ Macs.
-
-Then, in a new terminal from the project folder:
-
-```bash
-source .venv/bin/activate
-nano .env             # set CANVAS_BASE_URL to your school's Canvas URL
-canvas-ai login       # sign in via Microsoft 365 in the browser window
-canvas-ai courses     # confirm it works
-```
-
-(Requires [Homebrew](https://brew.sh). If you don't have it, install Ollama from
-https://ollama.com/download and re-run.)
-
 ## Usage
 
-```bash
+```powershell
 canvas-ai login                                     # browser mode: log in once
-canvas-ai web                                       # launch the GUI (recommended)
+canvas-ai app                                       # native Windows window (recommended)
+canvas-ai web                                       # same UI in your browser
 canvas-ai courses                                   # connectivity check
 canvas-ai agent "Summarize Module 3 in Biology and list any due dates"
 canvas-ai agent "Draft a reply to this week's discussion in History"
@@ -150,29 +124,46 @@ session (no browser relaunch), so it's fast.
 `WRITE_MODE` in `.env` controls write behavior: `dry_run` (default, writes
 nothing), `confirm` (asks before each write), or `auto` (graded work still asks).
 
-## Native macOS app
+## Native Windows app
 
-A full SwiftUI app lives in `macos/`. It launches the Python backend for you on
-start, talks to it over the local API, and renders everything natively (HTML via
-`AttributedString`, PDFs via PDFKit — no web view). Build it:
+A native desktop window lives in `windows/`. It launches the Python backend for
+you on start and renders the UI with **WebView2** (built into Windows 10/11) —
+no browser tab, no extra runtime to install.
 
-```bash
-brew install xcodegen          # one-time
-cd macos
-xcodegen generate              # creates CanvasAI.xcodeproj from project.yml
-open CanvasAI.xcodeproj        # then press Run in Xcode
+Run it from source (after the setup above + `canvas-ai login`):
+
+```powershell
+canvas-ai app
+# or:  powershell -ExecutionPolicy Bypass -File windows\run.ps1
 ```
 
-Requirements:
-- Finish the Python setup first (`setup.sh`, then `canvas-ai login`) so the
-  `.venv` and `.env` exist. The app defaults to `~/Canvas-AI`; if your project
-  is elsewhere, set the folder in the app's error screen → "Project Folder…".
-- The app spawns `.venv/bin/python -m uvicorn …` on launch and reuses an
-  already-running backend if one is up.
+Build a standalone `CanvasAI.exe`:
 
-Tabs mirror the web app — Modules, Due Dates, Discussions, Chat — with the same
-rules: the agent is read-only, posting a reply or submitting an assignment is an
-explicit action, and graded submissions show a confirm dialog.
+```powershell
+powershell -ExecutionPolicy Bypass -File windows\build.ps1   # -> dist\CanvasAI.exe
+```
+
+Keep your `.env` and the `.canvas_profile` folder next to the exe (or run it from
+the project folder) so it can find your settings and saved login. See
+[`windows/README.md`](windows/README.md) for details.
+
+Tabs mirror the web app — Modules, Due Dates, Discussions, Chat.
+
+## Doing assignments directly
+
+Each assignment has a **"Do it for me"** button that uses the AI to write the
+whole submission. By default it then shows you a confirm dialog before anything
+is posted. To skip the confirmation and have it write **and** submit in one
+click, set `AUTO_SUBMIT=true` in your `.env`:
+
+```
+WRITE_MODE=auto
+AUTO_SUBMIT=true
+```
+
+This also lets the chat agent submit graded work on its own. It's off by default
+because graded submissions are high-stakes — this is your account and your
+coursework, so check your school's academic-integrity policy before enabling it.
 
 ## A note on responsible use
 

@@ -36,12 +36,17 @@ class Config:
     anthropic_api_key: str
     anthropic_model: str
     write_mode: str
+    auto_submit: bool
 
     @classmethod
     def load(cls) -> "Config":
         write_mode = os.getenv("WRITE_MODE", "dry_run").strip().lower()
         if write_mode not in {"dry_run", "confirm", "auto"}:
             raise ConfigError(f"WRITE_MODE must be dry_run|confirm|auto, got {write_mode!r}")
+
+        # Opt-in: let the assistant complete AND submit graded work directly,
+        # without a per-submission confirmation. Off by default.
+        auto_submit = os.getenv("AUTO_SUBMIT", "false").strip().lower() in {"1", "true", "yes", "on"}
 
         auth_mode = os.getenv("AUTH_MODE", "browser").strip().lower()
         if auth_mode not in {"token", "browser"}:
@@ -62,4 +67,5 @@ class Config:
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
             anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-opus-4-8"),
             write_mode=write_mode,
+            auto_submit=auto_submit,
         )

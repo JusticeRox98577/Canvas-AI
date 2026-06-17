@@ -1,6 +1,7 @@
 const $ = (s) => document.querySelector(s);
 const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
 let activeCourse = null;
+let appConfig = { auto_submit: false, write_mode: "dry_run" };
 
 async function api(path, opts) {
   const r = await fetch(path, opts);
@@ -23,6 +24,8 @@ async function init() {
       $("#status").textContent = "not signed in";
     }
   } catch { $("#status").textContent = "offline"; }
+
+  try { appConfig = await api("/api/config"); } catch { /* keep defaults */ }
 
   try {
     const courses = await api("/api/courses");
@@ -197,6 +200,7 @@ async function openAssignment(aid, title) {
     const row = el("div", "row");
     const draftBtn = el("button", "ghost", "Draft with AI");
     const subBtn = el("button", "primary", "Submit…");
+    const doBtn = el("button", "primary", appConfig.auto_submit ? "Do it for me ✨" : "Do it for me…");
     draftBtn.onclick = async () => {
       draftBtn.disabled = true; draftBtn.textContent = "Drafting…";
       try {
@@ -207,10 +211,31 @@ async function openAssignment(aid, title) {
       draftBtn.disabled = false; draftBtn.textContent = "Draft with AI";
     };
     subBtn.onclick = () => confirmSubmit(aid, a.name, ta);
-    row.appendChild(draftBtn); row.appendChild(subBtn);
+    doBtn.onclick = () => doAssignment(aid, a.name, ta, doBtn);
+    row.appendChild(draftBtn); row.appendChild(doBtn); row.appendChild(subBtn);
     body.appendChild(row);
     showReaderNode(a.name || title || "Assignment", body);
   } catch (e) { showReader("Error", `<p class="muted">${e.message}</p>`); }
+}
+
+// One-click: AI writes the whole submission, then submits it. When AUTO_SUBMIT
+// is on it submits directly; otherwise it drafts and shows the confirm dialog.
+async function doAssignment(aid, name, ta, btn) {
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = appConfig.auto_submit ? "Doing it…" : "Drafting…";
+  try {
+    const r = await api("/api/assignment/do", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ course_id: activeCourse.id, assignment_id: aid, submit: appConfig.auto_submit }) });
+    ta.value = r.draft || "";
+    if (r.submitted) {
+      showReader("Submitted", `<p class="muted">Done — submitted your work to "${escapeHtml(name)}".</p>` +
+        `<div class="body"><pre class="body">${escapeHtml(r.draft || "")}</pre></div>`);
+    } else {
+      // Not in auto mode: review is required, so jump straight to the confirm step.
+      confirmSubmit(aid, name, ta);
+    }
+  } catch (e) { alert(e.message); }
+  btn.disabled = false; btn.textContent = label;
 }
 
 function confirmSubmit(aid, name, ta) {

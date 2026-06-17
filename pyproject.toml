@@ -17,9 +17,13 @@ dependencies = [
 browser = ["playwright>=1.44"]
 # Local web app (GUI)
 web = ["fastapi>=0.110", "uvicorn>=0.29", "pydantic>=2.0"]
+# Native desktop window (Windows). Uses the OS WebView2 runtime.
+desktop = ["pywebview>=5.0"]
 # Cloud brain (optional; off by default)
 anthropic = ["anthropic>=0.40"]
 dev = ["pytest>=8.0", "ruff>=0.5"]
+# Build the standalone CanvasAI.exe
+build = ["pyinstaller>=6.0"]
 
 [project.scripts]
 canvas-ai = "canvas_ai.cli:main"

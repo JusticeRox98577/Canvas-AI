@@ -63,6 +63,14 @@ def cmd_web(config: Config, host: str, port: int) -> None:
     uvicorn.run("canvas_ai.web.app:app", host=host, port=port, log_level="warning")
 
 
+def cmd_app(config: Config) -> None:
+    """Launch the native desktop window (Windows)."""
+    from canvas_ai import desktop
+
+    console.print("[green]Launching Canvas-AI…[/green]")
+    desktop.run()
+
+
 def cmd_agent(config: Config, goal: str) -> None:
     brain = get_provider(config)
     client, toolbox = _build(config)
@@ -83,6 +91,8 @@ def main() -> int:
     web.add_argument("--port", type=int, default=8765)
     web.add_argument("--host", default="127.0.0.1")
 
+    sub.add_parser("app", help="Launch the native desktop app (Windows window)")
+
     agent = sub.add_parser("agent", help="Run the agent with a natural-language goal")
     agent.add_argument("goal", help="What you want it to do, in plain English")
 
@@ -100,6 +110,8 @@ def main() -> int:
         cmd_courses(config)
     elif args.command == "web":
         cmd_web(config, args.host, args.port)
+    elif args.command == "app":
+        cmd_app(config)
     elif args.command == "agent":
         cmd_agent(config, args.goal)
     return 0
