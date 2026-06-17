@@ -362,16 +362,46 @@ async function openDiscussion(tid) {
   showReader("Loading…", "");
   try {
     const d = await api(`/api/discussion?course_id=${activeCourse.id}&topic_id=${tid}`);
+    const who = d.participants || {};
     const node = el("div");
     node.appendChild(el("div", "body", d.message || ""));
-    node.appendChild(el("p", null, "<strong>Replies</strong>"));
-    (d.entries || []).forEach((e) => {
+    const entries = (d.entries || []).filter((e) => !e.deleted);
+    node.appendChild(el("p", null, `<strong>Replies (${entries.length})</strong>`));
+    if (!entries.length) node.appendChild(el("p", "muted", "No one has posted yet — nobody to reply to."));
+    entries.forEach((e) => {
+      const name = who[String(e.user_id)] || ("User " + (e.user_id || ""));
       const ent = el("div", "entry");
-      ent.appendChild(el("div", "who", "User " + (e.user_id || "")));
-      ent.appendChild(el("div", null, e.message || ""));
+      ent.appendChild(el("div", "who", escapeHtml(name)));
+      ent.appendChild(el("div", "body", e.message || ""));
+
+      // Per-person reply box
+      const ta = el("textarea"); ta.rows = 3; ta.placeholder = `Reply to ${name}…`;
+      const row = el("div", "row");
+      const draftBtn = el("button", "ghost", "Reply with AI");
+      const postBtn = el("button", "primary", "Post reply…");
+      draftBtn.onclick = async () => {
+        draftBtn.disabled = true; draftBtn.textContent = "Drafting…";
+        try {
+          const r = await api("/api/draft", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ goal: `Write my reply (2-4 sentences) to my classmate ${name}'s discussion post, in first person. Respond to a specific point they made and add my own thought; keep it friendly and genuine. Their post: ${strip(e.message)}` }) });
+          ta.value = r.answer;
+        } catch (err) { alert(err.message); }
+        draftBtn.disabled = false; draftBtn.textContent = "Reply with AI";
+      };
+      postBtn.onclick = () => {
+        const msg = ta.value.trim();
+        if (!msg) { alert("Write or draft a reply first."); return; }
+        openModal(`Reply to ${name}?`, msg, async () => {
+          await api("/api/discussion/reply", { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ course_id: activeCourse.id, topic_id: tid, entry_id: e.id, message: msg }) });
+          closeModal(); openDiscussion(tid);
+        });
+      };
+      row.appendChild(draftBtn); row.appendChild(postBtn);
+      ent.appendChild(ta); ent.appendChild(row);
       node.appendChild(ent);
     });
-    node.appendChild(el("p", null, "<strong>Your reply</strong>"));
+    node.appendChild(el("p", null, "<strong>Your initial post</strong>"));
     const ta = el("textarea"); ta.rows = 4; node.appendChild(ta);
     const row = el("div", "row");
     const draftBtn = el("button", "ghost", "Draft with AI");
