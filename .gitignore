@@ -2,9 +2,6 @@
 .env
 config/*.local.*
 
-# Your personal writing sample (used to mimic your voice)
-voice.txt
-
 # Persistent browser login session (contains your Canvas cookies!)
 .canvas_profile/
 
