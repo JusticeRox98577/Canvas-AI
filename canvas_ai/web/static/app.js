@@ -240,7 +240,10 @@ async function doQuiz(quizId, title, node, btn) {
       panel.appendChild(item);
     });
     if (r.skipped && r.skipped.length) {
-      panel.appendChild(el("p", "muted", `Couldn't auto-answer ${r.skipped.length} question(s) (unsupported type) — answer those in Canvas before submitting.`));
+      panel.appendChild(el("p", "muted", `Couldn't auto-answer ${r.skipped.length} question(s) — answer those in Canvas before submitting.`));
+    }
+    if (r.debug && r.debug.length) {
+      panel.appendChild(el("pre", "body", "diagnostics:\n" + r.debug.map(escapeHtml).join("\n")));
     }
     const subBtn = el("button", "primary", appConfig.auto_submit ? "Submitting…" : "Submit quiz…");
     subBtn.onclick = () => submitQuiz(quizId, title, r.submission_id);

@@ -467,6 +467,7 @@ def api_quiz_answer(body: QuizDoIn) -> dict:
                             "total": len(res["answered"]) + len(res["skipped"]),
                             "answered": res["answered"],
                             "skipped": res["skipped"],
+                            "debug": res.get("debug", []),
                             "method": "browser",
                             "note": ("This quiz only shows one question at a time, so I filled "
                                      "it in on the quiz page directly. Review below, then Submit."),
