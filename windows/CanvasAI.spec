@@ -12,6 +12,14 @@ from PyInstaller.utils.hooks import collect_submodules, collect_data_files, coll
 
 block_cipher = None
 
+# Paths are resolved relative to this spec's folder (windows/), so build them
+# from the repo root explicitly. SPECPATH is the directory containing this spec.
+ROOT = os.path.dirname(os.path.abspath(SPECPATH))
+
+
+def R(*parts):
+    return os.path.join(ROOT, *parts)
+
 # --- core app ---
 hiddenimports = (
     collect_submodules("uvicorn")
@@ -20,8 +28,8 @@ hiddenimports = (
 )
 
 datas = [
-    ("canvas_ai/web/static", "canvas_ai/web/static"),
-    ("windows/CanvasAI.ico", "."),  # window/taskbar icon when frozen
+    (R("canvas_ai", "web", "static"), "canvas_ai/web/static"),
+    (R("windows", "CanvasAI.ico"), "."),  # window/taskbar icon when frozen
 ]
 datas += collect_data_files("webview")
 binaries = []
@@ -45,8 +53,8 @@ if os.path.isdir(_ms):
             datas.append((full, dest))
 
 a = Analysis(
-    ["windows/launch.py"],
-    pathex=["."],
+    [R("windows", "launch.py")],
+    pathex=[ROOT],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
@@ -72,5 +80,5 @@ exe = EXE(
     upx=True,
     runtime_tmpdir=None,
     console=False,  # no console window; it's a GUI app
-    icon="windows/CanvasAI.ico",
+    icon=R("windows", "CanvasAI.ico"),
 )
