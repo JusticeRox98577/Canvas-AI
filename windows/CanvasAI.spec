@@ -48,4 +48,5 @@ exe = EXE(
     upx=True,
     runtime_tmpdir=None,
     console=False,  # no console window; it's a GUI app
+    icon="windows/CanvasAI.ico",
 )

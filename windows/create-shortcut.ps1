@@ -12,6 +12,8 @@ if (-not (Test-Path $py)) {
 }
 
 $target = if (Test-Path $pyw) { $pyw } else { $py }
+$icon = Join-Path $root "windows\CanvasAI.ico"
+$iconLoc = if (Test-Path $icon) { "$icon,0" } else { "$target,0" }
 
 function New-CanvasShortcut($path) {
     $ws = New-Object -ComObject WScript.Shell
@@ -19,7 +21,7 @@ function New-CanvasShortcut($path) {
     $lnk.TargetPath = $target
     $lnk.Arguments = "-m canvas_ai.cli app"
     $lnk.WorkingDirectory = $root
-    $lnk.IconLocation = "$target,0"
+    $lnk.IconLocation = $iconLoc
     $lnk.Description = "Canvas-AI"
     $lnk.Save()
     Write-Host "Created: $path" -ForegroundColor Green
