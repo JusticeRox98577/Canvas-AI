@@ -416,11 +416,21 @@ def api_quiz_answer(body: QuizDoIn) -> dict:
             skipped: list[dict] = []
             seen: set = set()
 
-            # Re-fetch each pass: "one question at a time / can't go back" quizzes
-            # only reveal the next question after the current one is answered, so
-            # we must answer-and-save in order, then look again for the next.
+            # Re-fetch each pass: "can't go back" quizzes only reveal the next
+            # question after the current one is answered, so we answer-and-save
+            # in order, then look again for the next.
             for _ in range(500):  # safety cap
-                qs = quizzes.get_questions(c, sid)
+                try:
+                    qs = quizzes.get_questions(c, sid)
+                except Exception as exc:  # noqa: BLE001
+                    if "one question at a time" in str(exc).lower():
+                        raise HTTPException(
+                            status_code=400,
+                            detail=("This quiz is set to show one question at a time, which "
+                                    "Canvas does not allow reading through its API. Use "
+                                    "“Open quiz in Canvas” to take it there."),
+                        )
+                    raise
                 progressed = False
                 for q in qs:
                     if q["id"] in seen:
