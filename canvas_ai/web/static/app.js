@@ -40,6 +40,14 @@ async function init() {
   document.querySelectorAll(".tabs button").forEach((b) => {
     b.onclick = () => switchTab(b.dataset.tab, b);
   });
+  // First-run: if Claude Code or Canvas sign-in is missing, open Setup.
+  try {
+    const st = await api("/api/setup/status");
+    if ((st.claude_needed && !st.claude_installed) || !st.canvas_authenticated) {
+      switchTab("setup");
+    }
+  } catch { /* ignore */ }
+
   $("#chat-send").onclick = sendChat;
   $("#chat-text").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendChat();
@@ -48,14 +56,83 @@ async function init() {
 }
 
 function switchTab(name, btn) {
+  btn = btn || document.querySelector(`.tabs button[data-tab="${name}"]`);
   document.querySelectorAll(".tabs button").forEach((b) => b.classList.remove("active"));
-  btn.classList.add("active");
+  if (btn) btn.classList.add("active");
   document.querySelectorAll(".tab").forEach((t) => t.classList.add("hidden"));
   $("#tab-" + name).classList.remove("hidden");
   if (name === "dashboard") loadDashboard();
   if (name === "discussions") loadDiscussions();
   if (name === "settings") loadSettings();
+  if (name === "setup") loadSetup();
 }
+
+// ---- setup (first run) ----
+async function loadSetup() {
+  const box = $("#tab-setup");
+  box.innerHTML = `<p class="muted">Checking setup…</p>`;
+  let s;
+  try { s = await api("/api/setup/status"); } catch (e) { box.innerHTML = `<p class="muted">${escapeHtml(e.message)}</p>`; return; }
+  box.innerHTML = "";
+  const wrap = el("div", "settings-form");
+  wrap.appendChild(el("h2", null, "Setup"));
+
+  const step = (ok, title, body) => {
+    const d = el("div", "field");
+    d.appendChild(el("div", null, `<strong>${ok ? "✓" : "•"} ${escapeHtml(title)}</strong>`));
+    if (body) d.appendChild(body);
+    wrap.appendChild(d);
+    return d;
+  };
+
+  // 1. Claude Code (only if a claude_code brain is selected)
+  if (s.claude_needed) {
+    const body = el("div");
+    if (s.claude_installed) {
+      body.appendChild(el("p", "muted", "Claude Code is installed. If answers fail, log in once below."));
+    } else {
+      body.appendChild(el("p", "muted", "This app uses your Claude subscription via Claude Code, which isn't installed yet."));
+      if (s.platform === "win32") {
+        const ib = el("button", "primary", "Install Claude Code");
+        ib.onclick = async () => {
+          ib.disabled = true; ib.textContent = "Installing… (a minute or two)";
+          try { const r = await api("/api/setup/install_claude", { method: "POST" }); ib.textContent = r.ok ? "Installed ✓" : "Install ran — re-check below"; }
+          catch (e) { alert(e.message); ib.textContent = "Install Claude Code"; }
+          ib.disabled = false; loadSetupSoon();
+        };
+        body.appendChild(ib);
+      } else {
+        body.appendChild(el("p", "muted", "Install from https://claude.ai/install then re-check."));
+      }
+    }
+    const lb = el("button", "ghost", "Log in to Claude");
+    lb.onclick = async () => { try { await api("/api/setup/claude_login", { method: "POST" }); alert("A window opened — finish the Claude login there, choosing Subscription."); } catch (e) { alert(e.message); } };
+    body.appendChild(lb);
+    step(s.claude_installed, "Claude Code", body);
+  }
+
+  // 2. Canvas URL
+  const urlBody = el("div");
+  urlBody.appendChild(el("p", "muted", "Current: " + escapeHtml(s.canvas_base_url || "(not set)") + " — change it in the Settings tab."));
+  step(!!s.canvas_base_url, "Your Canvas URL", urlBody);
+
+  // 3. Canvas sign-in
+  const cbody = el("div");
+  if (!s.canvas_authenticated) {
+    const cb = el("button", "primary", "Sign in to Canvas");
+    cb.onclick = async () => { try { await api("/api/setup/canvas_login", { method: "POST" }); alert("A browser window opened — sign in to your school. Then re-check."); } catch (e) { alert(e.message); } };
+    cbody.appendChild(cb);
+  } else {
+    cbody.appendChild(el("p", "muted", "Signed in to Canvas."));
+  }
+  step(s.canvas_authenticated, "Canvas sign-in", cbody);
+
+  const recheck = el("button", "ghost", "Re-check");
+  recheck.onclick = () => loadSetup();
+  wrap.appendChild(recheck);
+  box.appendChild(wrap);
+}
+function loadSetupSoon() { setTimeout(loadSetup, 1500); }
 
 // ---- settings ----
 function selectEl(opts, val) {

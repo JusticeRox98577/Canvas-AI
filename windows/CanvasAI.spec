@@ -31,9 +31,23 @@ datas = [
     (R("canvas_ai", "web", "static"), "canvas_ai/web/static"),
     (R("windows", "CanvasAI.ico"), "."),  # window/taskbar icon when frozen
 ]
-# Bake the current .env in as built-in defaults (settings menu overrides it).
+# Bake the current .env in as built-in defaults (settings menu overrides it),
+# but SANITIZE it first so a published exe never ships secrets or personal data.
+_DENY = ("TOKEN", "KEY", "SECRET", "PASSWORD", "WRITING_SAMPLE")
 if os.path.isfile(R(".env")):
-    datas.append((R(".env"), "."))
+    safe_lines = []
+    with open(R(".env"), encoding="utf-8") as _fh:
+        for line in _fh:
+            name = line.split("=", 1)[0].strip()
+            if name and not name.startswith("#") and any(d in name.upper() for d in _DENY):
+                continue  # drop secret / personal keys
+            safe_lines.append(line)
+    _safe_dir = os.path.join(WORKPATH, "_envbundle")
+    os.makedirs(_safe_dir, exist_ok=True)
+    _safe_env = os.path.join(_safe_dir, ".env")  # keep the .env basename
+    with open(_safe_env, "w", encoding="utf-8") as _out:
+        _out.writelines(safe_lines)
+    datas.append((_safe_env, "."))  # -> _MEIPASS/.env
 datas += collect_data_files("webview")
 binaries = []
 

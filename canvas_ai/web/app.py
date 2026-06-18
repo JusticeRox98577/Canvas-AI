@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 import sys
+import threading
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -74,6 +76,76 @@ def status() -> dict:
         return {"authenticated": True, "name": me.get("name"), "base_url": _config.canvas_base_url}
     except Exception:  # noqa: BLE001
         return {"authenticated": False, "base_url": _config.canvas_base_url}
+
+
+# -- first-run setup -----------------------------------------------------
+@app.get("/api/setup/status")
+def setup_status() -> dict:
+    from canvas_ai.llm.claude_code import _find_claude
+
+    claude = _find_claude() is not None
+    try:
+        with CookieCanvasClient(_config) as c:
+            c.get("/users/self")
+        canvas_ok = True
+    except Exception:  # noqa: BLE001
+        canvas_ok = False
+    needs_claude = _config.llm_provider == "claude_code" or _config.draft_provider == "claude_code"
+    return {
+        "claude_installed": claude,
+        "claude_needed": needs_claude,
+        "canvas_authenticated": canvas_ok,
+        "canvas_base_url": _config.canvas_base_url,
+        "platform": sys.platform,
+    }
+
+
+@app.post("/api/setup/install_claude")
+def setup_install_claude() -> dict:
+    from canvas_ai.llm.claude_code import _find_claude, _no_window_kwargs
+
+    if sys.platform != "win32":
+        raise HTTPException(status_code=400, detail="Auto-install is Windows-only. See https://claude.ai/install")
+    try:
+        subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+             "-Command", "irm https://claude.ai/install.ps1 | iex"],
+            capture_output=True, text=True, timeout=900, **_no_window_kwargs(),
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Install failed: {exc}")
+    return {"ok": _find_claude() is not None}
+
+
+@app.post("/api/setup/claude_login")
+def setup_claude_login() -> dict:
+    from canvas_ai.llm.claude_code import _find_claude
+
+    claude = _find_claude()
+    if not claude:
+        raise HTTPException(status_code=400, detail="Install Claude Code first.")
+    try:
+        if sys.platform == "win32":
+            subprocess.Popen(["cmd", "/k", claude], creationflags=subprocess.CREATE_NEW_CONSOLE)
+        else:
+            subprocess.Popen([claude])
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(exc))
+    return {"ok": True}
+
+
+@app.post("/api/setup/canvas_login")
+def setup_canvas_login() -> dict:
+    from canvas_ai.browser.session import interactive_login
+
+    def go():
+        try:
+            interactive_login(_config)
+        except Exception:  # noqa: BLE001
+            pass
+
+    threading.Thread(target=go, daemon=True).start()
+    return {"ok": True}
 
 
 @app.get("/api/settings")

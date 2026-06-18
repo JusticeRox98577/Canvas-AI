@@ -63,6 +63,22 @@ large (roughly 300–400 MB).
 > Building must happen on Windows — PyInstaller can't cross-compile. The build
 > takes a few minutes.
 
+## Publishing it to other people
+
+1. Build the standalone exe: `powershell -File windows\build.ps1`.
+2. Install [Inno Setup](https://jrsoftware.org/isdl.php) and compile the
+   installer: `iscc windows\installer.iss` → `dist\Canvas-AI-Setup.exe`.
+3. Share `Canvas-AI-Setup.exe` (or just `CanvasAI.exe`).
+
+On first launch the app opens a **Setup** tab that walks each user through
+installing Claude Code, logging into Claude, setting their Canvas URL, and
+signing in to Canvas. The bundled `.env` is auto-sanitized at build time, so
+secrets (tokens/keys) and your personal writing sample are never shipped.
+
+Before you publish, read the "Heads-up before publishing" notes in the project
+README — each user needs their own Claude subscription, and a tool that submits
+graded work raises real academic-integrity and terms-of-service issues.
+
 ## Doing assignments directly
 
 By default, submitting graded work asks you to confirm first. To let the app
