@@ -14,10 +14,22 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from typing import Any
 
 from canvas_ai.config import Config
 from canvas_ai.llm.base import LLMResponse
+
+
+def _no_window_kwargs() -> dict:
+    """On Windows, run the subprocess hidden so the GUI/exe doesn't flash a
+    console window for every call."""
+    if sys.platform != "win32":
+        return {}
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = 0  # SW_HIDE
+    return {"creationflags": subprocess.CREATE_NO_WINDOW, "startupinfo": startupinfo}
 
 
 # Claude has no structured tool channel over `claude -p`, so we describe the
@@ -112,6 +124,7 @@ class ClaudeCodeProvider:
                 encoding="utf-8",
                 errors="replace",
                 timeout=300,
+                **_no_window_kwargs(),
             )
         except subprocess.TimeoutExpired:
             raise RuntimeError("Claude Code timed out.")
