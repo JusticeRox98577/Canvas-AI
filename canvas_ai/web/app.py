@@ -392,6 +392,36 @@ def _quiz_choose(brain, q: dict) -> tuple[dict | None, str]:
     return None, ""  # unsupported question type -> leave blank
 
 
+def _quiz_choose_browser(qtype: str, text: str, options: list[str]) -> dict:
+    """Answer a question read off the quiz page. Returns {"indices":[...]} for
+    choice questions or {"text": "..."} for written ones."""
+    if qtype in ("multiple_choice_question", "true_false_question", "multiple_answers_question"):
+        multi = qtype == "multiple_answers_question"
+        opts = "\n".join(f"[{i}] {o}" for i, o in enumerate(options))
+        ask = "Choose ALL correct option numbers" if multi else "Choose the single best option number"
+        prompt = (f"Question: {text}\n\nOptions:\n{opts}\n\n{ask}. "
+                  "Reply with ONLY the number(s), comma-separated. Nothing else.")
+        resp = _draft_brain.chat(
+            [{"role": "system", "content": "You answer quiz questions correctly and concisely."},
+             {"role": "user", "content": prompt}], tools=None)
+        idxs = [int(n) for n in re.findall(r"\d+", resp.text or "") if int(n) < len(options)]
+        return {"indices": idxs if multi else idxs[:1]}
+
+    if qtype == "numerical_question":
+        prompt = f"Question: {text}\n\nReply with ONLY the numeric answer."
+        resp = _draft_brain.chat(
+            [{"role": "system", "content": "You answer quiz questions correctly and concisely."},
+             {"role": "user", "content": prompt}], tools=None)
+        m = re.search(r"-?\d+(?:\.\d+)?", resp.text or "")
+        return {"text": m.group(0) if m else ""}
+
+    prompt = f"Question: {text}\n\nWrite the answer the question asks for."
+    resp = _draft_brain.chat(
+        [{"role": "system", "content": DO_SYSTEM()},
+         {"role": "user", "content": prompt}], tools=None)
+    return {"text": voice.clean_output(resp.text)}
+
+
 class QuizDoIn(BaseModel):
     course_id: int
     quiz_id: int
@@ -424,12 +454,23 @@ def api_quiz_answer(body: QuizDoIn) -> dict:
                     qs = quizzes.get_questions(c, sid)
                 except Exception as exc:  # noqa: BLE001
                     if "one question at a time" in str(exc).lower():
-                        raise HTTPException(
-                            status_code=400,
-                            detail=("This quiz is set to show one question at a time, which "
-                                    "Canvas does not allow reading through its API. Use "
-                                    "“Open quiz in Canvas” to take it there."),
+                        # API can't read this quiz type; fall back to driving the
+                        # real quiz page in a browser. Stops before final submit.
+                        from canvas_ai.canvas import quiz_browser
+
+                        res = quiz_browser.solve(
+                            _config, body.course_id, body.quiz_id,
+                            _quiz_choose_browser, submit=False,
                         )
+                        return {
+                            "submission_id": sid,
+                            "total": len(res["answered"]) + len(res["skipped"]),
+                            "answered": res["answered"],
+                            "skipped": res["skipped"],
+                            "method": "browser",
+                            "note": ("This quiz only shows one question at a time, so I filled "
+                                     "it in on the quiz page directly. Review below, then Submit."),
+                        }
                     raise
                 progressed = False
                 for q in qs:

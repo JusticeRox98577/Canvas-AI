@@ -231,6 +231,7 @@ async function doQuiz(quizId, title, node, btn) {
       body: JSON.stringify({ course_id: activeCourse.id, quiz_id: quizId }) });
 
     const panel = el("div", "entry");
+    if (r.note) panel.appendChild(el("p", "muted", escapeHtml(r.note)));
     panel.appendChild(el("p", null, `<strong>AI answers (${r.answered.length}/${r.total})</strong>`));
     r.answered.forEach((a, i) => {
       const item = el("div", "item");
