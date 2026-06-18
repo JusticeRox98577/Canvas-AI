@@ -20,11 +20,23 @@ notepad .env          # set CANVAS_BASE_URL to your school's Canvas URL
 canvas-ai login       # sign in once (browser window); session is saved
 ```
 
-## Run it (from source)
+## Launch it (no typing)
+
+`setup.ps1` creates a **Canvas-AI** icon on your Desktop and in the Start Menu —
+just double-click it. To (re)create those shortcuts anytime:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File windows\run.ps1
-# or:  canvas-ai app
+powershell -ExecutionPolicy Bypass -File windows\create-shortcut.ps1
+```
+
+You can also double-click **`CanvasAI.bat`** in the project folder, or pin the
+Desktop icon to your taskbar for one-click access.
+
+## Run it from a terminal
+
+```powershell
+canvas-ai app
+# or:  powershell -ExecutionPolicy Bypass -File windows\run.ps1
 ```
 
 ## Build a standalone CanvasAI.exe

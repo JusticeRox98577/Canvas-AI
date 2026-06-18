@@ -39,10 +39,17 @@ if (-not (Test-Path ".env")) {
     -replace '^DRAFT_PROVIDER=.*', 'DRAFT_PROVIDER=claude_code' |
     Set-Content ".env"
 
+# 5. Desktop + Start Menu shortcut (so you can launch by double-click)
+try {
+    & powershell -ExecutionPolicy Bypass -File "windows\create-shortcut.ps1"
+} catch {
+    Write-Host "Could not create a shortcut automatically (you can run windows\create-shortcut.ps1 later)." -ForegroundColor Yellow
+}
+
 Write-Host ""
 Write-Host "Done. Next (in a NEW terminal, from this folder):" -ForegroundColor Green
 Write-Host "  1. .\.venv\Scripts\Activate.ps1   (activate the environment)"
 Write-Host "  2. claude                          (log in ONCE -> choose Subscription / Pro-Max)"
 Write-Host "  3. notepad .env                    -> set CANVAS_BASE_URL (https://yourschool.instructure.com)"
 Write-Host "  4. canvas-ai login                 (sign in to Canvas in the browser window)"
-Write-Host "  5. canvas-ai app                   (open the native Windows app)"
+Write-Host "  5. Double-click the 'Canvas-AI' icon on your Desktop (or run: canvas-ai app)"
