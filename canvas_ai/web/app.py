@@ -411,23 +411,42 @@ def api_quiz_answer(body: QuizDoIn) -> dict:
             sid = sub["id"]
             attempt = sub.get("attempt")
             token = sub.get("validation_token")
-            qs = quizzes.get_questions(c, sid)
 
-            answered: list[dict] = []
             review: list[dict] = []
             skipped: list[dict] = []
-            for q in qs:
-                payload, display = _quiz_choose(_draft_brain, q)
-                qtext = _strip_html(q.get("question_text", ""))[:300]
-                if payload and payload.get("answer") not in (None, "", []):
-                    answered.append({"id": q["id"], **payload})
-                    review.append({"question": qtext, "type": q.get("question_type"), "answer": display})
-                else:
-                    skipped.append({"question": qtext, "type": q.get("question_type")})
+            seen: set = set()
 
-            if answered:
-                quizzes.save_answers(c, sid, attempt, token, answered)
-            return {"submission_id": sid, "total": len(qs), "answered": review, "skipped": skipped}
+            # Re-fetch each pass: "one question at a time / can't go back" quizzes
+            # only reveal the next question after the current one is answered, so
+            # we must answer-and-save in order, then look again for the next.
+            for _ in range(500):  # safety cap
+                qs = quizzes.get_questions(c, sid)
+                progressed = False
+                for q in qs:
+                    if q["id"] in seen:
+                        continue
+                    seen.add(q["id"])
+                    progressed = True
+                    payload, display = _quiz_choose(_draft_brain, q)
+                    qtext = _strip_html(q.get("question_text", ""))[:300]
+                    qtype = q.get("question_type")
+                    if payload and payload.get("answer") not in (None, "", []):
+                        try:
+                            # Save each answer before moving on, so locked
+                            # quizzes accept it and reveal the next question.
+                            quizzes.save_answers(c, sid, attempt, token, [{"id": q["id"], **payload}])
+                            review.append({"question": qtext, "type": qtype, "answer": display})
+                        except Exception as exc:  # noqa: BLE001
+                            skipped.append({"question": qtext, "type": qtype, "error": str(exc)[:200]})
+                    else:
+                        skipped.append({"question": qtext, "type": qtype})
+                    # In locked mode the next question appears only after a save,
+                    # so re-fetch right after answering one.
+                    break
+                if not progressed:
+                    break
+
+            return {"submission_id": sid, "total": len(seen), "answered": review, "skipped": skipped}
 
     return _guard(go)
 
