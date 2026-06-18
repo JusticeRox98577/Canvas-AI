@@ -38,6 +38,16 @@ def _icon_path() -> str | None:
     return None
 
 
+def _configure_playwright_env() -> None:
+    """When frozen, point Playwright at the Chromium bundled inside the exe."""
+    base = getattr(sys, "_MEIPASS", None)
+    if not base:
+        return
+    bundled = os.path.join(base, "ms-playwright")
+    if os.path.isdir(bundled):
+        os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", bundled)
+
+
 def _set_app_user_model_id() -> None:
     """Give the process its own taskbar identity (Windows only)."""
     if sys.platform != "win32":
@@ -157,6 +167,7 @@ def run(host: str = DEFAULT_HOST, port: int | None = None) -> None:
             'Desktop extras not installed. Run: pip install -e ".[desktop,web,browser]"'
         ) from exc
 
+    _configure_playwright_env()
     _set_app_user_model_id()
 
     # Make sure we're signed in before showing the app (opens the login window

@@ -41,17 +41,24 @@ canvas-ai app
 
 ## Build a standalone CanvasAI.exe
 
+One command from the repo root (after `setup.ps1`):
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File windows\build.ps1
 ```
 
-This produces `dist\CanvasAI.exe`. Keep your `.env` and the `.canvas_profile`
-folder (created by `canvas-ai login`) next to the exe, or launch the exe from
-the project folder, so it can find your settings and saved login.
+This produces `dist\CanvasAI.exe` — a **fully self-contained** app. It bundles
+the backend *and* the browser used for login (Playwright + Chromium), so you can
+copy `CanvasAI.exe` to any Windows PC and just double-click it; no Python, no
+venv, no separate login step. The first launch opens a sign-in window, then
+remembers you.
 
-> Login uses a real browser (Playwright/Chromium) and is intentionally **not**
-> bundled into the exe — do it once from the venv with `canvas-ai login`. The
-> exe reuses that saved session for fast, cookie-based reads and writes.
+Keep your `.env` next to the exe (or run it from the project folder) so it knows
+your Canvas URL and settings. Because Chromium is included, the exe is large
+(roughly 300–400 MB).
+
+> Building must happen on Windows — PyInstaller can't cross-compile. The build
+> takes a few minutes.
 
 ## Doing assignments directly
 

@@ -1,14 +1,18 @@
 # PyInstaller spec for Canvas-AI on Windows.
 # Build from the repo root:  pyinstaller windows/CanvasAI.spec
 #
-# Produces a single-file dist/CanvasAI.exe that launches the local backend and
-# opens a native window. Login (browser/Playwright) is done once beforehand with
-# `canvas-ai login`; the exe reuses the saved .canvas_profile session.
+# Produces a single self-contained dist/CanvasAI.exe that launches the local
+# backend, opens a native window, and can sign you in on its own (Playwright +
+# Chromium are bundled). No Python install needed to run the result.
 
-from PyInstaller.utils.hooks import collect_submodules, collect_data_files
+import os
+from pathlib import Path
+
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files, collect_all
 
 block_cipher = None
 
+# --- core app ---
 hiddenimports = (
     collect_submodules("uvicorn")
     + collect_submodules("webview")
@@ -17,21 +21,38 @@ hiddenimports = (
 
 datas = [
     ("canvas_ai/web/static", "canvas_ai/web/static"),
-    ("windows/CanvasAI.ico", "."),  # so the window icon loads when frozen
+    ("windows/CanvasAI.ico", "."),  # window/taskbar icon when frozen
 ]
 datas += collect_data_files("webview")
+binaries = []
+
+# --- Playwright (for the browser login) ---
+pw_datas, pw_binaries, pw_hidden = collect_all("playwright")
+datas += pw_datas
+binaries += pw_binaries
+hiddenimports += pw_hidden
+
+# --- the Chromium browser Playwright downloaded ---
+# `playwright install chromium` puts browsers in %LOCALAPPDATA%\ms-playwright.
+# Bundle that folder; at runtime desktop.py points PLAYWRIGHT_BROWSERS_PATH at it.
+_local = os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))
+_ms = os.path.join(_local, "ms-playwright")
+if os.path.isdir(_ms):
+    for root, _dirs, files in os.walk(_ms):
+        for f in files:
+            full = os.path.join(root, f)
+            dest = os.path.join("ms-playwright", os.path.relpath(os.path.dirname(full), _ms))
+            datas.append((full, dest))
 
 a = Analysis(
     ["windows/launch.py"],
     pathex=["."],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     runtime_hooks=[],
-    # Playwright/Chromium is huge and only needed for one-time login, which is
-    # done from the venv. Keep it out of the exe.
-    excludes=["playwright"],
+    excludes=[],
     cipher=block_cipher,
 )
 
