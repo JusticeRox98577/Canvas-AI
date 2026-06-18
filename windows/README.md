@@ -53,9 +53,12 @@ copy `CanvasAI.exe` to any Windows PC and just double-click it; no Python, no
 venv, no separate login step. The first launch opens a sign-in window, then
 remembers you.
 
-Keep your `.env` next to the exe (or run it from the project folder) so it knows
-your Canvas URL and settings. Because Chromium is included, the exe is large
-(roughly 300–400 MB).
+Your current `.env` is **baked into the exe** as the built-in defaults, and
+everything is editable in-app under the **Settings** tab (Canvas URL, brain,
+write mode, auto-submit, your writing voice). Changes save to
+`%APPDATA%\Canvas-AI\settings.json`, so they persist and override the baked-in
+values — no external `.env` needed. Because Chromium is included, the exe is
+large (roughly 300–400 MB).
 
 > Building must happen on Windows — PyInstaller can't cross-compile. The build
 > takes a few minutes.

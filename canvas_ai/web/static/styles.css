@@ -104,3 +104,14 @@ button:disabled { opacity: .5; cursor: default; }
 .modal-body { color: var(--muted); font-size: 13px; max-height: 40vh; overflow-y: auto; white-space: pre-wrap; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .muted { color: var(--muted); }
+
+.settings-form { max-width: 620px; }
+.settings-form .field { margin-bottom: 14px; }
+.settings-form label { display: block; font-weight: 600; margin-bottom: 4px; }
+.settings-form input, .settings-form select, .settings-form textarea {
+  width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--panel2); color: var(--text); box-sizing: border-box;
+}
+.settings-form .field .muted { font-weight: 400; margin-top: 4px; font-size: 12px; }
+.settings-form .checkrow { display: flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
+.settings-form .checkrow input { width: auto; }

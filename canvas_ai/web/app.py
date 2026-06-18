@@ -27,6 +27,7 @@ from canvas_ai.agent.loop import SYSTEM_PROMPT, run as run_agent
 from canvas_ai.agent.tools import Toolbox
 from canvas_ai.llm import get_provider
 from canvas_ai import voice
+from canvas_ai import settings as app_settings
 
 def _static_dir() -> str:
     # When frozen by PyInstaller, data files live under sys._MEIPASS.
@@ -73,6 +74,46 @@ def status() -> dict:
         return {"authenticated": True, "name": me.get("name"), "base_url": _config.canvas_base_url}
     except Exception:  # noqa: BLE001
         return {"authenticated": False, "base_url": _config.canvas_base_url}
+
+
+@app.get("/api/settings")
+def get_settings() -> dict:
+    return {
+        "canvas_base_url": _config.canvas_base_url,
+        "llm_provider": _config.llm_provider,
+        "draft_provider": _config.draft_provider,
+        "claude_code_model": os.getenv("CLAUDE_CODE_MODEL", ""),
+        "write_mode": _config.write_mode,
+        "auto_submit": _config.auto_submit,
+        "writing_sample": voice.voice_sample(),
+        "settings_path": app_settings.settings_file(),
+    }
+
+
+class SettingsIn(BaseModel):
+    canvas_base_url: str | None = None
+    llm_provider: str | None = None
+    draft_provider: str | None = None
+    claude_code_model: str | None = None
+    write_mode: str | None = None
+    auto_submit: bool | None = None
+    writing_sample: str | None = None
+
+
+@app.post("/api/settings")
+def post_settings(body: SettingsIn) -> dict:
+    """Save settings to disk, apply them, and rebuild config + brains live."""
+    global _config, _brain, _draft_brain
+    values = {k: v for k, v in body.dict().items() if v is not None}
+    app_settings.save_settings(values)
+    app_settings.apply_env(values)
+    try:
+        _config = Config.load()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail=f"Invalid settings: {exc}")
+    _brain = None        # rebuilt lazily with the new provider/model
+    _draft_brain = None
+    return {"ok": True}
 
 
 @app.get("/api/config")

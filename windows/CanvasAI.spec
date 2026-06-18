@@ -31,6 +31,9 @@ datas = [
     (R("canvas_ai", "web", "static"), "canvas_ai/web/static"),
     (R("windows", "CanvasAI.ico"), "."),  # window/taskbar icon when frozen
 ]
+# Bake the current .env in as built-in defaults (settings menu overrides it).
+if os.path.isfile(R(".env")):
+    datas.append((R(".env"), "."))
 datas += collect_data_files("webview")
 binaries = []
 

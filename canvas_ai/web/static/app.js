@@ -54,6 +54,65 @@ function switchTab(name, btn) {
   $("#tab-" + name).classList.remove("hidden");
   if (name === "dashboard") loadDashboard();
   if (name === "discussions") loadDiscussions();
+  if (name === "settings") loadSettings();
+}
+
+// ---- settings ----
+function selectEl(opts, val) {
+  const s = el("select");
+  opts.forEach((o) => { const op = el("option", null, o); op.value = o; if (o === val) op.selected = true; s.appendChild(op); });
+  return s;
+}
+
+async function loadSettings() {
+  const box = $("#tab-settings");
+  box.innerHTML = `<p class="muted">Loading settings…</p>`;
+  let s;
+  try { s = await api("/api/settings"); } catch (e) { box.innerHTML = `<p class="muted">${escapeHtml(e.message)}</p>`; return; }
+  box.innerHTML = "";
+  const form = el("div", "settings-form");
+  const field = (label, node, hint) => {
+    const w = el("div", "field");
+    w.appendChild(el("label", null, label));
+    w.appendChild(node);
+    if (hint) w.appendChild(el("div", "muted", hint));
+    form.appendChild(w);
+    return node;
+  };
+
+  const url = field("Canvas URL", el("input"), "e.g. https://yourschool.instructure.com");
+  url.value = s.canvas_base_url || "";
+  const llm = field("Brain (chat & quizzes)", selectEl(["claude_code", "ollama", "anthropic"], s.llm_provider));
+  const draft = field("Drafting brain", selectEl(["claude_code", "ollama", "anthropic"], s.draft_provider));
+  const model = field("Claude model (optional)", el("input"), "blank = your subscription default");
+  model.value = s.claude_code_model || "";
+  const wm = field("Write mode", selectEl(["dry_run", "confirm", "auto"], s.write_mode));
+  const auto = el("input"); auto.type = "checkbox"; auto.checked = !!s.auto_submit;
+  const autoWrap = el("label", "checkrow"); autoWrap.appendChild(auto); autoWrap.appendChild(document.createTextNode(" Auto-submit graded work (skip the confirm dialog)"));
+  const af = el("div", "field"); af.appendChild(autoWrap); form.appendChild(af);
+  const voiceTa = field("Your writing voice (sample)", el("textarea"), "Paste a few paragraphs you wrote; drafts will match your style.");
+  voiceTa.rows = 8; voiceTa.value = s.writing_sample || "";
+
+  const save = el("button", "primary", "Save settings");
+  const status = el("span", "muted", "");
+  save.onclick = async () => {
+    save.disabled = true; status.textContent = "Saving…";
+    try {
+      await api("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          canvas_base_url: url.value.trim(), llm_provider: llm.value, draft_provider: draft.value,
+          claude_code_model: model.value.trim(), write_mode: wm.value, auto_submit: auto.checked,
+          writing_sample: voiceTa.value,
+        }) });
+      status.textContent = "Saved ✓";
+      appConfig = await api("/api/config");
+    } catch (e) { status.textContent = "Error: " + e.message; }
+    save.disabled = false;
+  };
+  const row = el("div", "row"); row.appendChild(save); row.appendChild(status);
+  form.appendChild(row);
+  if (s.settings_path) form.appendChild(el("p", "muted", "Saved to: " + s.settings_path));
+  box.appendChild(form);
 }
 
 function selectCourse(c, li) {

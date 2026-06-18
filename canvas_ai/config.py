@@ -9,6 +9,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Layer in a bundled .env (frozen exe) and any user settings.json overrides.
+from canvas_ai import settings as _settings  # noqa: E402
+
+_settings.bootstrap_env()
+
 
 class ConfigError(RuntimeError):
     """Raised when required configuration is missing."""
