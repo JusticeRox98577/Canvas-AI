@@ -64,6 +64,43 @@ def _opt_text(inp) -> str:
         return ""
 
 
+def submit(config: Config, course_id: int, quiz_id: int) -> dict[str, Any]:
+    """Resume the in-progress attempt and click Submit Quiz in the browser.
+
+    Needed because Canvas won't complete one-at-a-time quizzes via the API.
+    """
+    from canvas_ai.browser.session import BrowserCanvasClient
+
+    client = BrowserCanvasClient(config, headless=True)
+    try:
+        page = client._ctx.new_page()
+        page.on("dialog", lambda d: d.accept())  # auto-accept "are you sure?" prompts
+        page.goto(
+            f"{config.canvas_base_url}/courses/{course_id}/quizzes/{quiz_id}/take",
+            wait_until="domcontentloaded",
+        )
+        page.wait_for_timeout(1000)
+        clicked = _click_if_present(
+            page,
+            "#submit_quiz_button", "button#submit_quiz_button",
+            "button:has-text('Submit Quiz')", "input[type=submit][value*='Submit']",
+        )
+        if not clicked:
+            return {"submitted": False, "reason": "no Submit button on the page"}
+        page.wait_for_timeout(1500)
+        # Some Canvas versions pop an HTML confirm dialog.
+        _click_if_present(
+            page,
+            ".ui-dialog button:has-text('Submit')",
+            ".ui-dialog button:has-text('OK')",
+            "button:has-text('Submit anyway')",
+        )
+        time.sleep(1.5)
+        return {"submitted": True}
+    finally:
+        client.close()
+
+
 def solve(
     config: Config,
     course_id: int,
@@ -178,9 +215,21 @@ def solve(
 
             page.wait_for_timeout(700)  # let Canvas auto-save
 
-            nxt = _find_next(page)
+            # Retry a few times: the Next control can lag the page render.
+            nxt = None
+            for _ in range(4):
+                nxt = _find_next(page)
+                if nxt:
+                    break
+                page.wait_for_timeout(600)
             if not nxt:
-                debug.append("no Next button -> assuming last question")
+                has_submit = bool(page.query_selector(
+                    "#submit_quiz_button, button:has-text('Submit Quiz'), "
+                    "input[type=submit][value*='Submit']"))
+                debug.append(
+                    f"no Next after {len(seen)} q; "
+                    + ("Submit present -> this was the last question"
+                       if has_submit else "no Submit either -> may have stopped early"))
                 break
             try:
                 nxt.click()

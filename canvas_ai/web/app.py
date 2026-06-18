@@ -516,13 +516,32 @@ def api_quiz_submit(body: QuizSubmitIn) -> dict:
     if not (_config.auto_submit or body.confirm):
         raise HTTPException(status_code=400, detail="Submitting a quiz requires confirm=true or AUTO_SUBMIT=true.")
 
+    def _browser_submit() -> dict:
+        from canvas_ai.canvas import quiz_browser
+
+        res = quiz_browser.submit(_config, body.course_id, body.quiz_id)
+        if not res.get("submitted"):
+            raise HTTPException(
+                status_code=500,
+                detail=("Couldn't submit this quiz automatically (" + str(res.get("reason", "")) +
+                        "). Use “Open quiz in Canvas” and click Submit there."),
+            )
+        return {"completed": True, "score": None, "workflow_state": "submitted", "via": "browser"}
+
     def go():
         with client() as c:
-            sub = quizzes.current_submission(c, body.course_id, body.quiz_id)
-            quizzes.complete(
-                c, body.course_id, body.quiz_id, body.submission_id,
-                sub.get("attempt"), sub.get("validation_token"),
-            )
+            try:
+                sub = quizzes.current_submission(c, body.course_id, body.quiz_id)
+                quizzes.complete(
+                    c, body.course_id, body.quiz_id, body.submission_id,
+                    sub.get("attempt"), sub.get("validation_token"),
+                )
+            except Exception as exc:  # noqa: BLE001
+                msg = str(exc).lower()
+                # Canvas won't complete one-at-a-time quizzes via API -> use browser.
+                if "not_implemented" in msg or "not supported" in msg or "501" in msg:
+                    return _browser_submit()
+                raise
             done = quizzes.current_submission(c, body.course_id, body.quiz_id)
             return {
                 "completed": True,
