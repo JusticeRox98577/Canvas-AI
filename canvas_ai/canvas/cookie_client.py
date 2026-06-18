@@ -59,17 +59,26 @@ class CookieCanvasClient:
         if self._csrf_primed:
             return
         self._csrf_primed = True
+        import html
+        import re
+
         try:
             self._client.cookies.delete("_csrf_token")
         except Exception:  # noqa: BLE001
             pass
-        try:
-            self._client.get(self._root)
-        except Exception:  # noqa: BLE001
-            pass
-        for cookie in self._client.cookies.jar:
-            if cookie.name == "_csrf_token" and cookie.value:
-                self._csrf = unquote(cookie.value)
+
+        for probe in (self._root, f"{self._base}/users/self"):
+            try:
+                r = self._client.get(probe)
+            except Exception:  # noqa: BLE001
+                continue
+            for cookie in self._client.cookies.jar:
+                if cookie.name == "_csrf_token" and cookie.value:
+                    self._csrf = unquote(cookie.value)
+                    return
+            m = re.search(r'name="csrf-token"\s+content="([^"]+)"', r.text or "")
+            if m:
+                self._csrf = html.unescape(m.group(1))
                 return
 
     # -- lifecycle -------------------------------------------------------
@@ -91,9 +100,10 @@ class CookieCanvasClient:
         resp = self._client.request(method, url, **kwargs)
         self._respect_rate_limit(resp)
         if resp.status_code in (401, 403):
+            detail = (resp.text or "").strip().replace("\n", " ")[:200]
             raise SessionExpired(
-                f"Canvas session expired or invalid ({resp.status_code}). "
-                "Re-run `canvas-ai login`."
+                f"Canvas {method} {path} -> {resp.status_code}. "
+                f"Canvas said: {detail or '(no body)'}"
             )
         if resp.status_code >= 400:
             raise RuntimeError(f"{method} {url} -> {resp.status_code}: {resp.text[:400]}")
