@@ -15,7 +15,10 @@ hiddenimports = (
     + ["canvas_ai.web.app"]
 )
 
-datas = [("canvas_ai/web/static", "canvas_ai/web/static")]
+datas = [
+    ("canvas_ai/web/static", "canvas_ai/web/static"),
+    ("windows/CanvasAI.ico", "."),  # so the window icon loads when frozen
+]
 datas += collect_data_files("webview")
 
 a = Analysis(
