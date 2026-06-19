@@ -37,8 +37,16 @@ Name: "{autodesktop}\Canvas-AI"; Filename: "{app}\CanvasAI.exe"; Tasks: desktopi
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"
+Name: "installai"; Description: "Set up my chosen AI backend now (Claude Code or Ollama)"; GroupDescription: "AI setup:"
 
 [Run]
+; Install the AI backend that matches the brain chosen on the setup page.
+Filename: "powershell.exe"; \
+  Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""irm https://claude.ai/install.ps1 | iex"""; \
+  StatusMsg: "Installing Claude Code..."; Flags: runhidden waituntilterminated; Check: NeedClaude
+Filename: "powershell.exe"; \
+  Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""winget install --id Ollama.Ollama -e --accept-source-agreements --accept-package-agreements"""; \
+  StatusMsg: "Installing Ollama..."; Flags: runhidden waituntilterminated; Check: NeedOllama
 Filename: "{app}\CanvasAI.exe"; Description: "Launch Canvas-AI"; Flags: nowait postinstall skipifsilent
 
 [Code]
@@ -91,6 +99,16 @@ begin
     Result := 'anthropic'
   else
     Result := 'claude_code';
+end;
+
+function NeedClaude(): Boolean;
+begin
+  Result := WizardIsTaskSelected('installai') and (BrainValue() = 'claude_code');
+end;
+
+function NeedOllama(): Boolean;
+begin
+  Result := WizardIsTaskSelected('installai') and (BrainValue() = 'ollama');
 end;
 
 function JsonEscape(const S: String): String;
