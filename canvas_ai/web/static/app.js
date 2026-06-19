@@ -14,6 +14,18 @@ async function api(path, opts) {
 
 // ---- init ----
 async function init() {
+  // License gate (only active when the build requires a license).
+  try {
+    const lic = await api("/api/license/status");
+    if (lic.required && !lic.activated) { showLicenseGate(); return; }
+  } catch { /* ignore */ }
+
+  // Update banner (only if UPDATE_URL is configured and a newer version exists).
+  try {
+    const u = await api("/api/update");
+    if (u.update_available) showUpdateBanner(u);
+  } catch { /* ignore */ }
+
   try {
     const s = await api("/api/status");
     if (s.authenticated) {
@@ -65,6 +77,40 @@ function switchTab(name, btn) {
   if (name === "discussions") loadDiscussions();
   if (name === "settings") loadSettings();
   if (name === "setup") loadSetup();
+  if (name === "study") loadStudy();
+}
+
+// ---- study mode ----
+async function loadStudy() {
+  const box = $("#tab-study");
+  if (!activeCourse) { box.innerHTML = `<p class="muted">Pick a course on the left, then study it here.</p>`; return; }
+  box.innerHTML = "";
+  box.appendChild(el("p", "muted", `Study help for ${escapeHtml(activeCourse.name || "this course")} — grounded in your real course material.`));
+  const topic = el("input"); topic.placeholder = "Optional: focus on a topic, module, or page";
+  box.appendChild(topic);
+  const out = el("div"); out.style.marginTop = "12px";
+  const mk = (label, goalFn) => {
+    const b = el("button", "ghost", label);
+    b.onclick = () => runStudy(goalFn(topic.value.trim()), b, out);
+    return b;
+  };
+  const row = el("div", "row");
+  row.appendChild(mk("Quiz me", (t) => `Write 5 practice quiz questions to test my understanding${t ? " of " + t : ""} in this course, then an answer key at the end. Base them on the course material.`));
+  row.appendChild(mk("Flashcards", (t) => `Make 8 flashcards as "Term — Definition" for the key concepts${t ? " in " + t : ""} in this course.`));
+  row.appendChild(mk("Explain concepts", (t) => `Explain the most important concepts I should understand${t ? " about " + t : ""} in this course, in simple plain terms.`));
+  row.appendChild(mk("Summarize", (t) => `Give me a concise review summary of the key points${t ? " of " + t : ""} in this course.`));
+  box.appendChild(row);
+  box.appendChild(out);
+}
+
+async function runStudy(goal, btn, out) {
+  const label = btn.textContent; btn.disabled = true; btn.textContent = "Thinking…";
+  out.innerHTML = `<p class="muted">Working from your course material…</p>`;
+  try {
+    const r = await api("/api/agent", { method: "POST", headers: { "Content-Type": "application/json" }, body: agentBody(goal) });
+    out.innerHTML = ""; out.appendChild(el("div", "msg ai", escapeHtml(r.answer)));
+  } catch (e) { out.innerHTML = `<p class="muted">${escapeHtml(e.message)}</p>`; }
+  btn.disabled = false; btn.textContent = label;
 }
 
 // ---- setup (first run) ----
@@ -686,6 +732,35 @@ function openModal(title, body, onok) {
   $("#modal-ok").onclick = async () => { try { await modalAction(); } catch (e) { alert(e.message); } };
 }
 function closeModal() { $("#modal").classList.add("hidden"); }
+
+// ---- license + update ----
+function showLicenseGate() {
+  const o = el("div", "modal");
+  o.innerHTML = `<div class="modal-box">
+    <div class="modal-title">Activate Canvas-AI</div>
+    <div class="modal-body">Enter your license key to unlock the app.</div>
+    <input id="lickey" type="text" placeholder="Your license key" style="margin-top:12px"/>
+    <div class="modal-actions"><span id="licmsg" class="muted"></span><button class="primary" id="licgo">Activate</button></div>
+  </div>`;
+  document.body.appendChild(o);
+  const go = async () => {
+    const key = o.querySelector("#lickey").value.trim();
+    o.querySelector("#licmsg").textContent = "Activating…";
+    try {
+      await api("/api/license/activate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key }) });
+      location.reload();
+    } catch (e) { o.querySelector("#licmsg").textContent = e.message; }
+  };
+  o.querySelector("#licgo").onclick = go;
+  o.querySelector("#lickey").addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+}
+
+function showUpdateBanner(u) {
+  const b = el("div", "banner");
+  b.innerHTML = `Update available: v${escapeHtml(u.latest)} (you have v${escapeHtml(u.current)}). ` +
+    (u.url ? `<a href="${escapeHtml(u.url)}" target="_blank">Download ↗</a>` : "");
+  document.querySelector("header").insertAdjacentElement("afterend", b);
+}
 
 // ---- utils ----
 function fmt(iso) { try { return new Date(iso).toLocaleString(); } catch { return iso; } }

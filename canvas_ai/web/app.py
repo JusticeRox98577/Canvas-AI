@@ -30,6 +30,8 @@ from canvas_ai.agent.tools import Toolbox
 from canvas_ai.llm import get_provider
 from canvas_ai import voice
 from canvas_ai import settings as app_settings
+from canvas_ai import license as app_license
+from canvas_ai import __version__
 
 def _static_dir() -> str:
     # When frozen by PyInstaller, data files live under sys._MEIPASS.
@@ -54,6 +56,11 @@ def client() -> CookieCanvasClient:
         return CookieCanvasClient(_config)
     except SessionExpired as exc:
         raise HTTPException(status_code=401, detail=str(exc))
+
+
+def _require_license() -> None:
+    if not app_license.is_activated():
+        raise HTTPException(status_code=402, detail="A valid license is required. Activate it to continue.")
 
 
 def _require_submit() -> None:
@@ -279,12 +286,63 @@ def api_config() -> dict:
         "auto_submit": _config.auto_submit,
         "allow_submit": _config.allow_submit,
         "draft_provider": _config.draft_provider,
+        "version": __version__,
     }
+
+
+# -- licensing (off unless LICENSE_REQUIRED=true) -------------------------
+@app.get("/api/license/status")
+def license_status() -> dict:
+    return app_license.status()
+
+
+class LicenseIn(BaseModel):
+    key: str
+
+
+@app.post("/api/license/activate")
+def license_activate(body: LicenseIn) -> dict:
+    ok, message = app_license.activate(body.key)
+    if not ok:
+        raise HTTPException(status_code=400, detail=message)
+    return {"ok": True, "message": message}
+
+
+# -- update check --------------------------------------------------------
+def _parse_ver(v: str) -> tuple:
+    parts = []
+    for p in str(v).strip().lstrip("v").split("."):
+        try:
+            parts.append(int(p))
+        except ValueError:
+            parts.append(0)
+    return tuple(parts)
+
+
+@app.get("/api/update")
+def api_update() -> dict:
+    """Compare the running version against a hosted version.json (set UPDATE_URL).
+    Expected JSON: {"version": "0.2.0", "url": "https://.../download"}."""
+    url = os.getenv("UPDATE_URL", "").strip()
+    result = {"current": __version__, "latest": __version__, "update_available": False, "url": ""}
+    if not url:
+        return result
+    try:
+        data = httpx.get(url, timeout=6).json()
+        latest = str(data.get("version", __version__))
+        result["latest"] = latest
+        result["url"] = data.get("url", "")
+        result["update_available"] = _parse_ver(latest) > _parse_ver(__version__)
+    except Exception:  # noqa: BLE001
+        pass
+    return result
 
 
 # -- reads ----------------------------------------------------------------
 @app.get("/api/courses")
 def api_courses() -> list[dict]:
+    _require_license()
+
     def go():
         with client() as c:
             return [{"id": x["id"], "name": x.get("name")} for x in courses.list_courses(c)]
@@ -818,6 +876,7 @@ def api_draft(body: DraftIn) -> dict:
     """Tool-free single-shot generation for drafting/explaining. The agent's
     tool machinery confuses small models into 'calling functions' instead of
     just writing, so this path uses a plain chat with no tools."""
+    _require_license()
     global _draft_brain
     if _draft_brain is None:
         _draft_brain = get_provider(_config, _config.draft_provider)
@@ -834,6 +893,7 @@ def api_draft(body: DraftIn) -> dict:
 
 @app.post("/api/agent")
 def api_agent(body: AgentIn) -> dict:
+    _require_license()
     global _brain
     if _brain is None:
         _brain = get_provider(_config)
