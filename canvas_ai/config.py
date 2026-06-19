@@ -67,7 +67,9 @@ class Config:
         token = _require("CANVAS_TOKEN") if auth_mode == "token" else os.getenv("CANVAS_TOKEN", "")
 
         return cls(
-            canvas_base_url=_require("CANVAS_BASE_URL").rstrip("/"),
+            # Optional so distributed builds boot with no school baked in; the
+            # user sets it in the Setup/Settings tab on first run.
+            canvas_base_url=os.getenv("CANVAS_BASE_URL", "").strip().rstrip("/"),
             canvas_token=token,
             auth_mode=auth_mode,
             canvas_profile_dir=os.getenv("CANVAS_PROFILE_DIR", ".canvas_profile"),

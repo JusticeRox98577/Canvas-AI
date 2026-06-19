@@ -50,9 +50,9 @@ on for sold builds:
 1. Create a product on **LemonSqueezy** (recommended — it's a merchant of
    record, so it handles tax/VAT) or **Gumroad** / **Keygen**.
 2. Enable license keys on the product.
-3. Build with licensing on:
+3. Turn licensing on for the build by editing **`.env.dist`** (these defaults get
+   baked into the exe): set `LICENSE_REQUIRED=true`. Then build:
    ```powershell
-   $env:LICENSE_REQUIRED = "true"
    powershell -ExecutionPolicy Bypass -File windows\build.ps1
    ```
 4. Buyers get a key by email → enter it on first launch → the app activates and

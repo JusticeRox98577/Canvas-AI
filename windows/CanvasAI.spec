@@ -32,12 +32,15 @@ datas = [
     (R("canvas_ai", "web", "static"), "canvas_ai/web/static"),
     (R("windows", "CanvasAI.ico"), "."),  # window/taskbar icon when frozen
 ]
-# Bake the current .env in as built-in defaults (settings menu overrides it),
-# but SANITIZE it first so a published exe never ships secrets or personal data.
-_DENY = ("TOKEN", "KEY", "SECRET", "PASSWORD", "WRITING_SAMPLE")
-if os.path.isfile(R(".env")):
+# Bake built-in defaults into the exe (the Settings menu overrides them).
+# Prefer .env.dist (clean distribution defaults with NO personal info); fall back
+# to your personal .env. Either way, sanitize out secrets/personal fields so a
+# published exe never ships tokens, keys, Canvas URL leakage, or your voice.
+_DENY = ("TOKEN", "KEY", "SECRET", "PASSWORD", "WRITING_SAMPLE", "CANVAS_BASE_URL")
+_envsrc = R(".env.dist") if os.path.isfile(R(".env.dist")) else R(".env")
+if os.path.isfile(_envsrc):
     safe_lines = []
-    with open(R(".env"), encoding="utf-8") as _fh:
+    with open(_envsrc, encoding="utf-8") as _fh:
         for line in _fh:
             name = line.split("=", 1)[0].strip()
             if name and not name.startswith("#") and any(d in name.upper() for d in _DENY):
