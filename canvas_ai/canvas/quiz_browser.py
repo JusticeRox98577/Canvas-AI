@@ -148,6 +148,7 @@ def solve(
             # Detect by inputs present, not CSS class.
             radios = q.query_selector_all("input[type=radio]")
             checks = q.query_selector_all("input[type=checkbox]")
+            selects = q.query_selector_all("select")
             textboxes = q.query_selector_all("input[type=text]")
             textareas = q.query_selector_all("textarea")
             iframes = q.query_selector_all("iframe")
@@ -174,6 +175,36 @@ def solve(
                         {"question": qtext[:300], "type": "choice",
                          "answer": "; ".join(options[i][1] for i in idxs)} if idxs
                         else {"question": qtext[:300], "type": "choice"})
+                elif selects:
+                    # Matching / multiple-dropdown: one <select> per row. Pick the
+                    # best option for each, using its row label as the prompt.
+                    rows_done = []
+                    for selnode in selects:
+                        prompt = (selnode.evaluate(
+                            "el => { const a = el.closest('.answer'); "
+                            "const l = a && a.querySelector('.answer_match_left'); "
+                            "if (l) return l.innerText; "
+                            "const r = el.closest('tr,li,div,p'); return r ? r.innerText : ''; }") or "").strip()
+                        opts = []
+                        for o in selnode.query_selector_all("option"):
+                            val = o.get_attribute("value") or ""
+                            txt = (o.inner_text() or "").strip()
+                            if val and txt and txt.lower().strip("[] ") != "choose":
+                                opts.append((val, txt))
+                        if not opts:
+                            continue
+                        decision = answer_fn("matching", f"{qtext}\n\nItem: {prompt}", [o[1] for o in opts])
+                        idxs = decision.get("indices", [])
+                        if idxs and 0 <= idxs[0] < len(opts):
+                            try:
+                                selnode.select_option(opts[idxs[0]][0])
+                                rows_done.append(f"{prompt[:40]} -> {opts[idxs[0]][1]}")
+                            except Exception:  # noqa: BLE001
+                                pass
+                    (answered if rows_done else skipped).append(
+                        {"question": qtext[:200], "type": "matching",
+                         "answer": "; ".join(rows_done)} if rows_done
+                        else {"question": qtext[:200], "type": "matching"})
                 elif textareas or iframes:
                     choice = answer_fn("essay_question", qtext, [])
                     txt = (choice.get("text") or "").strip()

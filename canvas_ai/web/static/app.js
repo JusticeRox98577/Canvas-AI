@@ -43,7 +43,7 @@ async function init() {
   // First-run: if Claude Code or Canvas sign-in is missing, open Setup.
   try {
     const st = await api("/api/setup/status");
-    if ((st.claude_needed && !st.claude_installed) || !st.canvas_authenticated) {
+    if (!st.brain_ready || !st.canvas_authenticated) {
       switchTab("setup");
     }
   } catch { /* ignore */ }
@@ -85,18 +85,31 @@ async function loadSetup() {
     return d;
   };
 
-  // 1. Claude Code (only if a claude_code brain is selected)
-  if (s.claude_needed) {
+  // 1. Pick the AI brain
+  const pickBody = el("div");
+  pickBody.appendChild(el("p", "muted",
+    "Claude = your Claude Pro/Max subscription · Ollama = free local model · Anthropic = API key (paid)."));
+  const pick = selectEl(["claude_code", "ollama", "anthropic"], s.llm_provider);
+  pick.onchange = async () => {
+    try { await api("/api/setup/provider", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provider: pick.value }) }); loadSetup(); appConfig = await api("/api/config"); }
+    catch (e) { alert(e.message); }
+  };
+  pickBody.appendChild(pick);
+  step(s.brain_ready, "AI brain", pickBody);
+
+  // 1a. Provider-specific setup
+  if (s.llm_provider === "claude_code") {
     const body = el("div");
     if (s.claude_installed) {
       body.appendChild(el("p", "muted", "Claude Code is installed. If answers fail, log in once below."));
     } else {
-      body.appendChild(el("p", "muted", "This app uses your Claude subscription via Claude Code, which isn't installed yet."));
+      body.appendChild(el("p", "muted", "Uses your Claude subscription via Claude Code, which isn't installed yet."));
       if (s.platform === "win32") {
         const ib = el("button", "primary", "Install Claude Code");
         ib.onclick = async () => {
           ib.disabled = true; ib.textContent = "Installing… (a minute or two)";
-          try { const r = await api("/api/setup/install_claude", { method: "POST" }); ib.textContent = r.ok ? "Installed ✓" : "Install ran — re-check below"; }
+          try { const r = await api("/api/setup/install_claude", { method: "POST" }); ib.textContent = r.ok ? "Installed ✓" : "Install ran — re-check"; }
           catch (e) { alert(e.message); ib.textContent = "Install Claude Code"; }
           ib.disabled = false; loadSetupSoon();
         };
@@ -109,6 +122,48 @@ async function loadSetup() {
     lb.onclick = async () => { try { await api("/api/setup/claude_login", { method: "POST" }); alert("A window opened — finish the Claude login there, choosing Subscription."); } catch (e) { alert(e.message); } };
     body.appendChild(lb);
     step(s.claude_installed, "Claude Code", body);
+
+  } else if (s.llm_provider === "ollama") {
+    const body = el("div");
+    if (s.ollama_running) {
+      body.appendChild(el("p", "muted", `Ollama is running (model: ${escapeHtml(s.ollama_model)}).`));
+    } else {
+      body.appendChild(el("p", "muted", "Free local model. Needs Ollama installed and a model pulled (a few GB)."));
+      if (s.platform === "win32") {
+        const ib = el("button", "primary", `Install Ollama + ${escapeHtml(s.ollama_model)}`);
+        ib.onclick = async () => {
+          ib.disabled = true; ib.textContent = "Installing + downloading model… (can take a while)";
+          try { const r = await api("/api/setup/install_ollama", { method: "POST" }); ib.textContent = r.ok ? "Ready ✓" : "Ran — re-check"; }
+          catch (e) { alert(e.message); ib.textContent = "Install Ollama"; }
+          ib.disabled = false; loadSetupSoon();
+        };
+        body.appendChild(ib);
+      } else {
+        body.appendChild(el("p", "muted", "Install from https://ollama.com/download, then run: ollama pull " + escapeHtml(s.ollama_model)));
+      }
+    }
+    step(s.ollama_running, "Local model (Ollama)", body);
+
+  } else if (s.llm_provider === "anthropic") {
+    const body = el("div");
+    body.appendChild(el("p", "muted", "Paid Anthropic API. Get a key at https://console.anthropic.com."));
+    const key = el("input"); key.type = "password"; key.placeholder = s.anthropic_key_set ? "key saved — paste to replace" : "sk-ant-…";
+    const model = el("input"); model.value = s.anthropic_model || "";
+    body.appendChild(el("label", null, "API key")); body.appendChild(key);
+    body.appendChild(el("label", null, "Model")); body.appendChild(model);
+    const sb = el("button", "primary", "Save API key");
+    sb.onclick = async () => {
+      sb.disabled = true;
+      try {
+        const payload = { anthropic_model: model.value.trim() };
+        if (key.value.trim()) payload.anthropic_api_key = key.value.trim();
+        await api("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        loadSetup();
+      } catch (e) { alert(e.message); }
+      sb.disabled = false;
+    };
+    body.appendChild(sb);
+    step(s.anthropic_key_set, "Anthropic API key", body);
   }
 
   // 2. Canvas URL

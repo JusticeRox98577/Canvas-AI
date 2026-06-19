@@ -79,6 +79,14 @@ def status() -> dict:
 
 
 # -- first-run setup -----------------------------------------------------
+def _ollama_running() -> bool:
+    try:
+        httpx.get(f"{_config.ollama_host}/api/tags", timeout=2.0)
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
 @app.get("/api/setup/status")
 def setup_status() -> dict:
     from canvas_ai.llm.claude_code import _find_claude
@@ -90,14 +98,73 @@ def setup_status() -> dict:
         canvas_ok = True
     except Exception:  # noqa: BLE001
         canvas_ok = False
-    needs_claude = _config.llm_provider == "claude_code" or _config.draft_provider == "claude_code"
+
+    provider = _config.llm_provider
+    ollama = _ollama_running() if provider == "ollama" else False
+    anth = bool(_config.anthropic_api_key)
+    if provider == "claude_code":
+        brain_ready = claude
+    elif provider == "ollama":
+        brain_ready = ollama
+    elif provider == "anthropic":
+        brain_ready = anth
+    else:
+        brain_ready = True
+
     return {
+        "llm_provider": provider,
+        "brain_ready": brain_ready,
         "claude_installed": claude,
-        "claude_needed": needs_claude,
+        "claude_needed": provider == "claude_code" or _config.draft_provider == "claude_code",
+        "ollama_running": ollama,
+        "ollama_model": _config.ollama_model,
+        "anthropic_key_set": anth,
+        "anthropic_model": _config.anthropic_model,
         "canvas_authenticated": canvas_ok,
         "canvas_base_url": _config.canvas_base_url,
         "platform": sys.platform,
     }
+
+
+class ProviderIn(BaseModel):
+    provider: str
+
+
+@app.post("/api/setup/provider")
+def setup_provider(body: ProviderIn) -> dict:
+    """Switch the AI brain (chat + drafting) and rebuild config live."""
+    global _config, _brain, _draft_brain
+    if body.provider not in {"claude_code", "ollama", "anthropic"}:
+        raise HTTPException(status_code=400, detail="Unknown provider.")
+    vals = {"llm_provider": body.provider, "draft_provider": body.provider}
+    app_settings.save_settings(vals)
+    app_settings.apply_env(vals)
+    _config = Config.load()
+    _brain = None
+    _draft_brain = None
+    return {"ok": True}
+
+
+@app.post("/api/setup/install_ollama")
+def setup_install_ollama() -> dict:
+    from canvas_ai.llm.claude_code import _no_window_kwargs
+
+    if sys.platform != "win32":
+        raise HTTPException(status_code=400, detail="Windows-only auto-install. See https://ollama.com/download")
+    try:
+        subprocess.run(
+            ["winget", "install", "--id", "Ollama.Ollama", "-e",
+             "--accept-source-agreements", "--accept-package-agreements"],
+            capture_output=True, text=True, timeout=1200, **_no_window_kwargs(),
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Install failed: {exc}")
+    try:  # pull the default model (large; best-effort)
+        subprocess.run(["ollama", "pull", _config.ollama_model],
+                       capture_output=True, text=True, timeout=3600, **_no_window_kwargs())
+    except Exception:  # noqa: BLE001
+        pass
+    return {"ok": _ollama_running()}
 
 
 @app.post("/api/setup/install_claude")
@@ -158,6 +225,8 @@ def get_settings() -> dict:
         "write_mode": _config.write_mode,
         "auto_submit": _config.auto_submit,
         "writing_sample": voice.voice_sample(),
+        "anthropic_model": _config.anthropic_model,
+        "has_anthropic_key": bool(_config.anthropic_api_key),
         "settings_path": app_settings.settings_file(),
     }
 
@@ -170,6 +239,8 @@ class SettingsIn(BaseModel):
     write_mode: str | None = None
     auto_submit: bool | None = None
     writing_sample: str | None = None
+    anthropic_api_key: str | None = None
+    anthropic_model: str | None = None
 
 
 @app.post("/api/settings")
@@ -508,7 +579,7 @@ def _quiz_choose(brain, q: dict) -> tuple[dict | None, str]:
 def _quiz_choose_browser(qtype: str, text: str, options: list[str]) -> dict:
     """Answer a question read off the quiz page. Returns {"indices":[...]} for
     choice questions or {"text": "..."} for written ones."""
-    if qtype in ("multiple_choice_question", "true_false_question", "multiple_answers_question"):
+    if qtype in ("multiple_choice_question", "true_false_question", "multiple_answers_question", "matching"):
         multi = qtype == "multiple_answers_question"
         opts = "\n".join(f"[{i}] {o}" for i, o in enumerate(options))
         ask = "Choose ALL correct option numbers" if multi else "Choose the single best option number"
@@ -548,6 +619,22 @@ def api_quiz_answer(body: QuizDoIn) -> dict:
     if _draft_brain is None:
         _draft_brain = get_provider(_config, _config.draft_provider)
 
+    def _browser_quiz(sid: int, note: str) -> dict:
+        from canvas_ai.canvas import quiz_browser
+
+        res = quiz_browser.solve(
+            _config, body.course_id, body.quiz_id, _quiz_choose_browser, submit=False,
+        )
+        return {
+            "submission_id": sid,
+            "total": len(res["answered"]) + len(res["skipped"]),
+            "answered": res["answered"],
+            "skipped": res["skipped"],
+            "debug": res.get("debug", []),
+            "method": "browser",
+            "note": note,
+        }
+
     def go():
         with client() as c:
             sub = quizzes.start_submission(c, body.course_id, body.quiz_id)
@@ -558,6 +645,7 @@ def api_quiz_answer(body: QuizDoIn) -> dict:
             review: list[dict] = []
             skipped: list[dict] = []
             seen: set = set()
+            had_unsupported = False
 
             # Re-fetch each pass: "can't go back" quizzes only reveal the next
             # question after the current one is answered, so we answer-and-save
@@ -567,24 +655,9 @@ def api_quiz_answer(body: QuizDoIn) -> dict:
                     qs = quizzes.get_questions(c, sid)
                 except Exception as exc:  # noqa: BLE001
                     if "one question at a time" in str(exc).lower():
-                        # API can't read this quiz type; fall back to driving the
-                        # real quiz page in a browser. Stops before final submit.
-                        from canvas_ai.canvas import quiz_browser
-
-                        res = quiz_browser.solve(
-                            _config, body.course_id, body.quiz_id,
-                            _quiz_choose_browser, submit=False,
-                        )
-                        return {
-                            "submission_id": sid,
-                            "total": len(res["answered"]) + len(res["skipped"]),
-                            "answered": res["answered"],
-                            "skipped": res["skipped"],
-                            "debug": res.get("debug", []),
-                            "method": "browser",
-                            "note": ("This quiz only shows one question at a time, so I filled "
-                                     "it in on the quiz page directly. Review below, then Submit."),
-                        }
+                        return _browser_quiz(sid, (
+                            "This quiz only shows one question at a time, so I filled it in "
+                            "on the quiz page directly. Review below, then Submit."))
                     raise
                 progressed = False
                 for q in qs:
@@ -595,6 +668,8 @@ def api_quiz_answer(body: QuizDoIn) -> dict:
                     payload, display = _quiz_choose(_draft_brain, q)
                     qtext = _strip_html(q.get("question_text", ""))[:300]
                     qtype = q.get("question_type")
+                    if qtype not in quizzes.SUPPORTED:
+                        had_unsupported = True
                     if payload and payload.get("answer") not in (None, "", []):
                         try:
                             # Save each answer before moving on, so locked
@@ -610,6 +685,13 @@ def api_quiz_answer(body: QuizDoIn) -> dict:
                     break
                 if not progressed:
                     break
+
+            # If the quiz had types the API can't fill (matching, dropdowns…),
+            # let the browser handle the whole thing on the real page.
+            if had_unsupported:
+                return _browser_quiz(sid, (
+                    "This quiz has question types the API can't fill (like matching or "
+                    "dropdowns), so I used the quiz page directly. Review below, then Submit."))
 
             return {"submission_id": sid, "total": len(seen), "answered": review, "skipped": skipped}
 
