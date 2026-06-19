@@ -64,6 +64,25 @@ begin
   BrainPage.SelectedValueIndex := 0;
 end;
 
+function NextButtonClick(CurPageID: Integer): Boolean;
+var
+  Url: String;
+begin
+  Result := True;
+  if CurPageID = InfoPage.ID then
+  begin
+    Url := Trim(InfoPage.Values[1]);
+    if (Url <> '') and (Lowercase(Copy(Url, 1, 7)) <> 'http://')
+       and (Lowercase(Copy(Url, 1, 8)) <> 'https://') then
+    begin
+      MsgBox('Please enter a full Canvas URL starting with https:// '
+        + '(for example https://yourschool.instructure.com), '
+        + 'or leave it blank to set it later in the app.', mbError, MB_OK);
+      Result := False;
+    end;
+  end;
+end;
+
 function BrainValue(): String;
 begin
   if BrainPage.SelectedValueIndex = 1 then
