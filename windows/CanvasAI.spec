@@ -6,6 +6,7 @@
 # Chromium are bundled). No Python install needed to run the result.
 
 import os
+import tempfile
 from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_submodules, collect_data_files, collect_all
@@ -42,8 +43,7 @@ if os.path.isfile(R(".env")):
             if name and not name.startswith("#") and any(d in name.upper() for d in _DENY):
                 continue  # drop secret / personal keys
             safe_lines.append(line)
-    _safe_dir = os.path.join(WORKPATH, "_envbundle")
-    os.makedirs(_safe_dir, exist_ok=True)
+    _safe_dir = tempfile.mkdtemp(prefix="canvasai_env_")
     _safe_env = os.path.join(_safe_dir, ".env")  # keep the .env basename
     with open(_safe_env, "w", encoding="utf-8") as _out:
         _out.writelines(safe_lines)
