@@ -9,6 +9,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Layer in a bundled .env (frozen exe) and any user settings.json overrides.
+from canvas_ai import settings as _settings  # noqa: E402
+
+_settings.bootstrap_env()
+
 
 class ConfigError(RuntimeError):
     """Raised when required configuration is missing."""
@@ -36,12 +41,23 @@ class Config:
     anthropic_api_key: str
     anthropic_model: str
     write_mode: str
+    auto_submit: bool
+    allow_submit: bool
 
     @classmethod
     def load(cls) -> "Config":
         write_mode = os.getenv("WRITE_MODE", "dry_run").strip().lower()
         if write_mode not in {"dry_run", "confirm", "auto"}:
             raise ConfigError(f"WRITE_MODE must be dry_run|confirm|auto, got {write_mode!r}")
+
+        # Opt-in: let the assistant complete AND submit graded work directly,
+        # without a per-submission confirmation. Off by default.
+        auto_submit = os.getenv("AUTO_SUBMIT", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+        # Master switch: this is a STUDY tool by default. Submitting/auto-doing
+        # graded work (assignments, replies, quizzes) is hidden and disabled
+        # unless the user turns this on. Off by default.
+        allow_submit = os.getenv("ALLOW_SUBMIT", "false").strip().lower() in {"1", "true", "yes", "on"}
 
         auth_mode = os.getenv("AUTH_MODE", "browser").strip().lower()
         if auth_mode not in {"token", "browser"}:
@@ -51,7 +67,9 @@ class Config:
         token = _require("CANVAS_TOKEN") if auth_mode == "token" else os.getenv("CANVAS_TOKEN", "")
 
         return cls(
-            canvas_base_url=_require("CANVAS_BASE_URL").rstrip("/"),
+            # Optional so distributed builds boot with no school baked in; the
+            # user sets it in the Setup/Settings tab on first run.
+            canvas_base_url=os.getenv("CANVAS_BASE_URL", "").strip().rstrip("/"),
             canvas_token=token,
             auth_mode=auth_mode,
             canvas_profile_dir=os.getenv("CANVAS_PROFILE_DIR", ".canvas_profile"),
@@ -62,4 +80,6 @@ class Config:
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", ""),
             anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-opus-4-8"),
             write_mode=write_mode,
+            auto_submit=auto_submit,
+            allow_submit=allow_submit,
         )

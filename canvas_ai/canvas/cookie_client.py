@@ -30,6 +30,7 @@ class SessionExpired(RuntimeError):
 class CookieCanvasClient:
     def __init__(self, config: Config, *, timeout: float = 30.0):
         self._base = f"{config.canvas_base_url}/api/v1"
+        self._root = config.canvas_base_url
         state_file = os.path.join(config.canvas_profile_dir, "storage_state.json")
         if not os.path.exists(state_file):
             raise SessionExpired("No saved session. Run `canvas-ai login` first.")
@@ -44,7 +45,41 @@ class CookieCanvasClient:
             if c["name"] == "_csrf_token":
                 csrf = unquote(c["value"])
         self._csrf = csrf
+        self._csrf_primed = False
         self._client = httpx.Client(cookies=jar, timeout=timeout, follow_redirects=True)
+
+    def _ensure_csrf(self) -> None:
+        """Get a CSRF token that matches the *current* session before writing.
+
+        The saved _csrf_token can be stale (from an earlier session) even when
+        the session cookie still reads fine — which makes reads work but writes
+        401. So we drop the old token and hit the Canvas root once; Canvas then
+        issues a fresh _csrf_token paired with this session, which we read back.
+        """
+        if self._csrf_primed:
+            return
+        self._csrf_primed = True
+        import html
+        import re
+
+        try:
+            self._client.cookies.delete("_csrf_token")
+        except Exception:  # noqa: BLE001
+            pass
+
+        for probe in (self._root, f"{self._base}/users/self"):
+            try:
+                r = self._client.get(probe)
+            except Exception:  # noqa: BLE001
+                continue
+            for cookie in self._client.cookies.jar:
+                if cookie.name == "_csrf_token" and cookie.value:
+                    self._csrf = unquote(cookie.value)
+                    return
+            m = re.search(r'name="csrf-token"\s+content="([^"]+)"', r.text or "")
+            if m:
+                self._csrf = html.unescape(m.group(1))
+                return
 
     # -- lifecycle -------------------------------------------------------
     def close(self) -> None:
@@ -60,13 +95,15 @@ class CookieCanvasClient:
     def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         url = path if path.startswith("http") else f"{self._base}{path}"
         if method in ("POST", "PUT", "DELETE"):
+            self._ensure_csrf()
             kwargs.setdefault("headers", {})["X-CSRF-Token"] = self._csrf
         resp = self._client.request(method, url, **kwargs)
         self._respect_rate_limit(resp)
         if resp.status_code in (401, 403):
+            detail = (resp.text or "").strip().replace("\n", " ")[:200]
             raise SessionExpired(
-                f"Canvas session expired or invalid ({resp.status_code}). "
-                "Re-run `canvas-ai login`."
+                f"Canvas {method} {path} -> {resp.status_code}. "
+                f"Canvas said: {detail or '(no body)'}"
             )
         if resp.status_code >= 400:
             raise RuntimeError(f"{method} {url} -> {resp.status_code}: {resp.text[:400]}")

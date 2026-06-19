@@ -1,0 +1,8 @@
+Copy this file to "voice.txt" and replace everything below with a few
+paragraphs of YOUR OWN writing — an old essay, a discussion post, a long text,
+anything that sounds like you. The AI reads it and matches your voice (your
+word choices, sentence length, and tone) when it drafts assignments,
+discussion posts, and quiz essays.
+
+Two or three paragraphs is plenty. The more it sounds like the real you, the
+better the match. This file stays on your computer and is never committed.

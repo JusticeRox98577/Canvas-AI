@@ -1,0 +1,9 @@
+{
+  // Deploys the static marketing site (website/) as a Cloudflare Worker with
+  // static assets. `npx wrangler deploy` reads this; no build step needed.
+  "name": "canvas-ai",
+  "compatibility_date": "2025-01-01",
+  "assets": {
+    "directory": "./website"
+  }
+}

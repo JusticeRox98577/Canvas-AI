@@ -14,10 +14,60 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from typing import Any
 
 from canvas_ai.config import Config
 from canvas_ai.llm.base import LLMResponse
+
+
+def _no_window_kwargs() -> dict:
+    """On Windows, run the subprocess hidden so the GUI/exe doesn't flash a
+    console window for every call."""
+    if sys.platform != "win32":
+        return {}
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = 0  # SW_HIDE
+    return {"creationflags": subprocess.CREATE_NO_WINDOW, "startupinfo": startupinfo}
+
+
+# Claude has no structured tool channel over `claude -p`, so we describe the
+# tools in the prompt and ask it to emit a JSON call. The agent loop recovers
+# these with extract_text_tool_calls().
+def _tool_instructions(tools: list[dict[str, Any]]) -> str:
+    lines = [
+        "You can call tools to fetch real data before answering. Available tools:",
+    ]
+    for t in tools:
+        fn = t.get("function", t)
+        params = fn.get("parameters", {}).get("properties", {})
+        sig = ", ".join(params.keys())
+        lines.append(f"- {fn.get('name')}({sig}): {fn.get('description', '')}")
+    lines += [
+        "",
+        "To CALL a tool, reply with ONLY a JSON object and nothing else:",
+        '  {"name": "<tool>", "parameters": {<args>}}',
+        "You will then be given the tool result and can call another tool.",
+        "When you have everything you need, reply with your final answer as plain",
+        "text (no JSON). Never invent data you did not get from a tool.",
+    ]
+    return "\n".join(lines)
+
+
+def _format_convo(messages: list[dict[str, Any]]) -> str:
+    parts: list[str] = []
+    for m in messages:
+        role = m.get("role")
+        content = m.get("content", "")
+        if role == "user":
+            parts.append(f"User: {content}")
+        elif role == "assistant":
+            if content:
+                parts.append(f"Assistant: {content}")
+        elif role == "tool":
+            parts.append(f"Tool result ({m.get('name', '')}): {content}")
+    return "\n\n".join(parts)
 
 
 def _find_claude() -> str | None:
@@ -53,18 +103,29 @@ class ClaudeCodeProvider:
                 "  claude"
             )
         system = "\n\n".join(m["content"] for m in messages if m.get("role") == "system")
-        convo = "\n\n".join(
-            m["content"] for m in messages if m.get("role") in {"user", "assistant", "tool"}
-        )
+        if tools:
+            system = (system + "\n\n" + _tool_instructions(tools)).strip()
+        convo = _format_convo(messages)
 
-        args = [self._bin, "-p", convo]
-        if system:
-            args += ["--append-system-prompt", system]
+        # Send the prompt over stdin, not as an argv string: Windows caps the
+        # command line at ~32k chars and course context blows past that.
+        prompt = (system + "\n\n----\n\n" + convo).strip() if system else convo
+
+        args = [self._bin, "-p"]
         if self._model:
             args += ["--model", self._model]
 
         try:
-            res = subprocess.run(args, capture_output=True, text=True, timeout=300)
+            res = subprocess.run(
+                args,
+                input=prompt,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=300,
+                **_no_window_kwargs(),
+            )
         except subprocess.TimeoutExpired:
             raise RuntimeError("Claude Code timed out.")
         if res.returncode != 0:

@@ -20,12 +20,22 @@ class WriteBlocked(Exception):
     """Raised when a write is rejected (by dry_run or by the user)."""
 
 
-def approve(action: str, summary: str, *, mode: str) -> bool:
+def approve(action: str, summary: str, *, mode: str, auto_submit: bool = False) -> bool:
     """Return True if the write should proceed.
 
     mode: dry_run | confirm | auto
+
+    High-stakes writes (graded submissions) are forced to 'confirm' unless the
+    user explicitly opts in with auto_submit=True *and* mode='auto', in which
+    case the assistant may submit graded work directly.
     """
-    effective = "confirm" if action in HIGH_STAKES else mode
+    high_stakes = action in HIGH_STAKES
+    if high_stakes and auto_submit and mode == "auto":
+        effective = "auto"
+    elif high_stakes:
+        effective = "confirm"
+    else:
+        effective = mode
 
     console.print(Panel(summary, title=f"WRITE: {action}  (mode={effective})", expand=False))
 

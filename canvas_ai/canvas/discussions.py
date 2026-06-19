@@ -10,10 +10,15 @@ def list_discussions(client: CanvasClient, course_id: int) -> list[dict]:
 
 
 def read_discussion(client: CanvasClient, course_id: int, topic_id: int) -> dict:
-    """Topic metadata plus the full reply tree."""
+    """Topic metadata plus the full reply tree and a user_id -> name map."""
     topic = client.get(f"/courses/{course_id}/discussion_topics/{topic_id}")
     view = client.get(f"/courses/{course_id}/discussion_topics/{topic_id}/view")
     topic["entries"] = view.get("view", [])
+    topic["participants"] = {
+        str(p["id"]): p.get("display_name") or p.get("name")
+        for p in view.get("participants", [])
+        if p.get("id") is not None
+    }
     return topic
 
 

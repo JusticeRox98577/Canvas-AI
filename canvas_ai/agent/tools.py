@@ -93,8 +93,13 @@ class Toolbox:
         return discussions.reply_to_entry(self.client, course_id, topic_id, entry_id, message)
 
     def _submit_assignment_text(self, course_id: int, assignment_id: int, body: str) -> dict:
-        # HIGH_STAKES: gate forces 'confirm' regardless of write_mode.
-        if not gates.approve("submit_assignment_text", body, mode=self.config.write_mode):
+        # HIGH_STAKES: gate forces 'confirm' unless the user opted into AUTO_SUBMIT.
+        if not gates.approve(
+            "submit_assignment_text",
+            body,
+            mode=self.config.write_mode,
+            auto_submit=self.config.auto_submit,
+        ):
             return {"status": "skipped"}
         return assignments.submit_text(self.client, course_id, assignment_id, body)
 

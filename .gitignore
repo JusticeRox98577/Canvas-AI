@@ -22,11 +22,10 @@ venv/
 downloads/
 cache/
 
-# macOS app build artifacts
-macos/CanvasAI.xcodeproj/
-macos/DerivedData/
-macos/.build/
-*.xcuserstate
+# Windows app build artifacts
+build/
+dist/
+*.spec.bak
 
-# Backend log written by the macOS app
+# Backend log
 backend.log
