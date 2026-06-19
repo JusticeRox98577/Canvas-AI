@@ -9,10 +9,13 @@
 
 #define MyApp "Canvas-AI"
 #define MyVer "0.1.0"
+#define MyPublisher "Canvas-AI"
 
 [Setup]
 AppName={#MyApp}
 AppVersion={#MyVer}
+AppPublisher={#MyPublisher}
+VersionInfoVersion={#MyVer}
 DefaultDirName={autopf}\Canvas-AI
 DefaultGroupName=Canvas-AI
 OutputDir=..\dist
@@ -21,6 +24,9 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
+SetupIconFile=CanvasAI.ico
+UninstallDisplayIcon={app}\CanvasAI.exe
+DisableProgramGroupPage=yes
 
 [Files]
 Source: "..\dist\CanvasAI.exe"; DestDir: "{app}"; Flags: ignoreversion

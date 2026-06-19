@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Canvas-AI — Your AI study partner for Canvas</title>
+<style>
+  :root{ --grad:linear-gradient(135deg,#6366f1,#8b5cf6); --ink:#0b0d12; --muted:#5b6678; }
+  *{box-sizing:border-box} body{margin:0;font:16px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;color:var(--ink)}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 24px}
+  header{display:flex;align-items:center;justify-content:space-between;padding:20px 0}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800}
+  .brand .dot{width:30px;height:30px;border-radius:9px;background:var(--grad)}
+  .btn{display:inline-block;background:var(--grad);color:#fff;text-decoration:none;padding:12px 22px;border-radius:12px;font-weight:700;box-shadow:0 8px 24px rgba(124,58,237,.35)}
+  .btn.ghost{background:#eef0f6;color:#1c2333;box-shadow:none}
+  .hero{text-align:center;padding:64px 0 40px}
+  .hero h1{font-size:46px;line-height:1.1;margin:0 0 16px;letter-spacing:-1px}
+  .hero h1 span{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero p{font-size:19px;color:var(--muted);max-width:620px;margin:0 auto 28px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;padding:30px 0}
+  .card{border:1px solid #e6e8ef;border-radius:16px;padding:22px;background:#fff}
+  .card h3{margin:0 0 6px;font-size:17px}
+  .card p{margin:0;color:var(--muted);font-size:14.5px}
+  .price{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;padding:10px 0 40px}
+  .tier{border:1px solid #e6e8ef;border-radius:16px;padding:24px;text-align:center}
+  .tier.hot{border-color:#8b5cf6;box-shadow:0 10px 30px rgba(124,58,237,.18)}
+  .tier .amt{font-size:34px;font-weight:800;margin:8px 0}
+  .tier ul{list-style:none;padding:0;margin:14px 0;color:var(--muted);font-size:14px}
+  .section-title{text-align:center;font-size:28px;margin:40px 0 8px}
+  .note{text-align:center;color:var(--muted);font-size:13px;padding:30px 0 60px}
+  footer{border-top:1px solid #e6e8ef;padding:24px 0;color:var(--muted);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><span class="dot"></span> Canvas-AI</div>
+    <a class="btn ghost" href="#pricing">Pricing</a>
+  </header>
+
+  <section class="hero">
+    <h1>Your AI <span>study partner</span><br/>for Canvas</h1>
+    <p>Understand your courses faster. Quiz yourself on the real material, get plain-English
+       explanations, draft your work, and never miss a due date.</p>
+    <a class="btn" href="#download">Download for Windows</a>
+  </section>
+
+  <div class="grid">
+    <div class="card"><h3>📚 Reads your courses</h3><p>Pulls your actual modules, pages, and files from Canvas — no copy-pasting.</p></div>
+    <div class="card"><h3>🧠 Study mode</h3><p>Quiz-me, flashcards, summaries, and explanations grounded in your course material.</p></div>
+    <div class="card"><h3>🗓️ Due-date dashboard</h3><p>Everything that's due across all your courses, in one place.</p></div>
+    <div class="card"><h3>✍️ Draft assistant</h3><p>Get a first draft for discussions and assignments that you review and post yourself.</p></div>
+    <div class="card"><h3>🔒 Your data stays yours</h3><p>Runs on your own Claude subscription or a free local model. Nothing routed through us.</p></div>
+    <div class="card"><h3>⚡ Native app</h3><p>A real Windows app — fast, clean, and it remembers your login.</p></div>
+  </div>
+
+  <h2 class="section-title" id="pricing">Simple pricing</h2>
+  <div class="price">
+    <div class="tier"><h3>Free</h3><div class="amt">$0</div><ul><li>Read modules + due dates</li><li>10 study actions / day</li></ul><a class="btn ghost" href="#download">Get started</a></div>
+    <div class="tier hot"><h3>Student</h3><div class="amt">$6<span style="font-size:15px">/mo</span></div><ul><li>Unlimited study mode</li><li>Drafting + all courses</li><li>7-day free trial</li></ul><a class="btn" href="#download">Start trial</a></div>
+    <div class="tier"><h3>Lifetime</h3><div class="amt">$59</div><ul><li>Everything, one device</li><li>Free updates</li></ul><a class="btn ghost" href="#download">Buy once</a></div>
+  </div>
+
+  <p class="note" id="download">Canvas-AI helps you <strong>learn</strong> your coursework. Always follow your school's academic-integrity policy.</p>
+</div>
+<footer>© Canvas-AI · <a href="#">Privacy</a> · <a href="#">Support</a></footer>
+</body>
+</html>
