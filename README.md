@@ -1,5 +1,12 @@
 # Canvas-AI
 
+A **local-first AI study assistant for Canvas LMS**. By default it helps you
+**read, understand, study, and draft** your coursework — it does not submit
+anything. Submitting/auto-doing graded work is an optional capability that is
+**off until you explicitly enable it** (`ALLOW_SUBMIT=true`, or the toggle in
+Settings); until then those buttons don't even appear. You are responsible for
+following your school's academic-integrity policy.
+
 A **local-first AI assistant for Canvas LMS**. It can browse your courses, read
 modules and the content embedded inside pages (PDFs, slides, iframed videos/LTI
 tools), and — with your confirmation — draft and post discussion replies or

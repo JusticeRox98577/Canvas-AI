@@ -56,6 +56,16 @@ def client() -> CookieCanvasClient:
         raise HTTPException(status_code=401, detail=str(exc))
 
 
+def _require_submit() -> None:
+    """Submitting/auto-doing graded work is off unless the user enables it.
+    Canvas-AI is a study tool by default."""
+    if not _config.allow_submit:
+        raise HTTPException(
+            status_code=403,
+            detail="Submitting is turned off. Enable “Allow submitting graded work” in Settings to use this.",
+        )
+
+
 def _guard(fn):
     try:
         return fn()
@@ -224,6 +234,7 @@ def get_settings() -> dict:
         "claude_code_model": os.getenv("CLAUDE_CODE_MODEL", ""),
         "write_mode": _config.write_mode,
         "auto_submit": _config.auto_submit,
+        "allow_submit": _config.allow_submit,
         "writing_sample": voice.voice_sample(),
         "anthropic_model": _config.anthropic_model,
         "has_anthropic_key": bool(_config.anthropic_api_key),
@@ -238,6 +249,7 @@ class SettingsIn(BaseModel):
     claude_code_model: str | None = None
     write_mode: str | None = None
     auto_submit: bool | None = None
+    allow_submit: bool | None = None
     writing_sample: str | None = None
     anthropic_api_key: str | None = None
     anthropic_model: str | None = None
@@ -265,6 +277,7 @@ def api_config() -> dict:
     return {
         "write_mode": _config.write_mode,
         "auto_submit": _config.auto_submit,
+        "allow_submit": _config.allow_submit,
         "draft_provider": _config.draft_provider,
     }
 
@@ -416,6 +429,8 @@ class ReplyIn(BaseModel):
 
 @app.post("/api/discussion/reply")
 def api_reply(body: ReplyIn) -> dict:
+    _require_submit()
+
     def go():
         with client() as c:
             if body.entry_id:
@@ -435,6 +450,7 @@ class SubmitIn(BaseModel):
 
 @app.post("/api/assignment/submit")
 def api_submit(body: SubmitIn) -> dict:
+    _require_submit()
     # Graded submissions are high-stakes: require an explicit confirm from the UI.
     if not body.confirm:
         raise HTTPException(status_code=400, detail="Submission requires confirm=true.")
@@ -483,6 +499,7 @@ def api_do(body: DoIn) -> dict:
     passes confirm=true (the UI's confirm dialog). With submit=false it only
     drafts so the user can review/edit first.
     """
+    _require_submit()
     global _draft_brain
     if _draft_brain is None:
         _draft_brain = get_provider(_config, _config.draft_provider)
@@ -615,6 +632,7 @@ class QuizDoIn(BaseModel):
 def api_quiz_answer(body: QuizDoIn) -> dict:
     """Start the attempt, let the AI answer every supported question, and save
     those answers — but do NOT submit. The user reviews, then calls /submit."""
+    _require_submit()
     global _draft_brain
     if _draft_brain is None:
         _draft_brain = get_provider(_config, _config.draft_provider)
@@ -708,6 +726,7 @@ class QuizSubmitIn(BaseModel):
 @app.post("/api/quiz/submit")
 def api_quiz_submit(body: QuizSubmitIn) -> dict:
     """Turn in the quiz. Requires confirm=true (the UI dialog) or AUTO_SUBMIT."""
+    _require_submit()
     if not (_config.auto_submit or body.confirm):
         raise HTTPException(status_code=400, detail="Submitting a quiz requires confirm=true or AUTO_SUBMIT=true.")
 

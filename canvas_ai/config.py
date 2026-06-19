@@ -42,6 +42,7 @@ class Config:
     anthropic_model: str
     write_mode: str
     auto_submit: bool
+    allow_submit: bool
 
     @classmethod
     def load(cls) -> "Config":
@@ -52,6 +53,11 @@ class Config:
         # Opt-in: let the assistant complete AND submit graded work directly,
         # without a per-submission confirmation. Off by default.
         auto_submit = os.getenv("AUTO_SUBMIT", "false").strip().lower() in {"1", "true", "yes", "on"}
+
+        # Master switch: this is a STUDY tool by default. Submitting/auto-doing
+        # graded work (assignments, replies, quizzes) is hidden and disabled
+        # unless the user turns this on. Off by default.
+        allow_submit = os.getenv("ALLOW_SUBMIT", "false").strip().lower() in {"1", "true", "yes", "on"}
 
         auth_mode = os.getenv("AUTH_MODE", "browser").strip().lower()
         if auth_mode not in {"token", "browser"}:
@@ -73,4 +79,5 @@ class Config:
             anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-opus-4-8"),
             write_mode=write_mode,
             auto_submit=auto_submit,
+            allow_submit=allow_submit,
         )

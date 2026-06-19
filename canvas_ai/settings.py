@@ -27,9 +27,10 @@ ENV_MAP = {
     "anthropic_model": "ANTHROPIC_MODEL",
     "write_mode": "WRITE_MODE",
     "auto_submit": "AUTO_SUBMIT",
+    "allow_submit": "ALLOW_SUBMIT",
     "writing_sample": "WRITING_SAMPLE",
 }
-BOOL_KEYS = {"auto_submit"}
+BOOL_KEYS = {"auto_submit", "allow_submit"}
 
 
 def config_dir() -> str:

@@ -219,6 +219,12 @@ async function loadSettings() {
   const model = field("Claude model (optional)", el("input"), "blank = your subscription default");
   model.value = s.claude_code_model || "";
   const wm = field("Write mode", selectEl(["dry_run", "confirm", "auto"], s.write_mode));
+  const allow = el("input"); allow.type = "checkbox"; allow.checked = !!s.allow_submit;
+  const allowWrap = el("label", "checkrow"); allowWrap.appendChild(allow);
+  allowWrap.appendChild(document.createTextNode(" Allow submitting graded work (off = study only)"));
+  const allowField = el("div", "field"); allowField.appendChild(allowWrap);
+  allowField.appendChild(el("div", "muted", "When off, Canvas-AI only helps you read, study, and draft — no submit/auto-do buttons appear."));
+  form.appendChild(allowField);
   const auto = el("input"); auto.type = "checkbox"; auto.checked = !!s.auto_submit;
   const autoWrap = el("label", "checkrow"); autoWrap.appendChild(auto); autoWrap.appendChild(document.createTextNode(" Auto-submit graded work (skip the confirm dialog)"));
   const af = el("div", "field"); af.appendChild(autoWrap); form.appendChild(af);
@@ -234,7 +240,7 @@ async function loadSettings() {
         body: JSON.stringify({
           canvas_base_url: url.value.trim(), llm_provider: llm.value, draft_provider: draft.value,
           claude_code_model: model.value.trim(), write_mode: wm.value, auto_submit: auto.checked,
-          writing_sample: voiceTa.value,
+          allow_submit: allow.checked, writing_sample: voiceTa.value,
         }) });
       status.textContent = "Saved ✓";
       appConfig = await api("/api/config");
@@ -349,9 +355,9 @@ async function openQuiz(quizId, title) {
     ].filter(Boolean).join(" · ");
     node.appendChild(el("p", "muted", meta));
     node.appendChild(el("p", "muted",
-      "“Do quiz with AI” starts an attempt and fills in answers, then shows them " +
-      "for your review — nothing is turned in until you click Submit. Classic " +
-      "quizzes only (New Quizzes can't be automated)."));
+      appConfig.allow_submit
+        ? "“Study this with AI” explains what to learn. (Submitting is enabled in Settings.)"
+        : "Use “Study this with AI” to learn the material. Open the quiz in Canvas to take it."));
     const row = el("div", "row");
     const doBtn = el("button", "primary", appConfig.auto_submit ? "Do quiz for me ✨" : "Do quiz with AI…");
     const study = el("button", "ghost", "Study this with AI");
@@ -367,7 +373,8 @@ async function openQuiz(quizId, title) {
       study.disabled = false; study.textContent = "Study this with AI";
     };
     open.onclick = () => { if (q.html_url) window.open(q.html_url, "_blank"); };
-    row.appendChild(doBtn); row.appendChild(study); row.appendChild(open);
+    if (appConfig.allow_submit) row.appendChild(doBtn);
+    row.appendChild(study); row.appendChild(open);
     node.appendChild(row);
     showReaderNode(q.title || title || "Quiz", node);
   } catch (e) { showReader("Error", `<p class="muted">${escapeHtml(e.message)}</p>`); }
@@ -406,7 +413,8 @@ async function openAssignment(aid, title) {
     };
     subBtn.onclick = () => confirmSubmit(aid, a.name, ta);
     doBtn.onclick = () => doAssignment(aid, a.name, ta, doBtn);
-    row.appendChild(draftBtn); row.appendChild(doBtn); row.appendChild(subBtn);
+    row.appendChild(draftBtn);
+    if (appConfig.allow_submit) { row.appendChild(doBtn); row.appendChild(subBtn); }
     body.appendChild(row);
     showReaderNode(a.name || title || "Assignment", body);
   } catch (e) { showReader("Error", `<p class="muted">${e.message}</p>`); }
@@ -592,7 +600,8 @@ async function openDiscussion(tid) {
           closeModal(); openDiscussion(tid);
         });
       };
-      row.appendChild(draftBtn); row.appendChild(postBtn);
+      row.appendChild(draftBtn);
+      if (appConfig.allow_submit) row.appendChild(postBtn);
       ent.appendChild(ta); ent.appendChild(row);
       node.appendChild(ent);
     });
@@ -619,7 +628,9 @@ async function openDiscussion(tid) {
         closeModal(); ta.value = ""; openDiscussion(tid);
       });
     };
-    row.appendChild(draftBtn); row.appendChild(postBtn); node.appendChild(row);
+    row.appendChild(draftBtn);
+    if (appConfig.allow_submit) row.appendChild(postBtn);
+    node.appendChild(row);
     showReaderNode(d.title || "Discussion", node);
   } catch (e) { showReader("Error", `<p class="muted">${e.message}</p>`); }
 }
