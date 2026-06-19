@@ -90,6 +90,10 @@ def bootstrap_env() -> None:
                 load_dotenv(envf, override=False)
             except Exception:  # noqa: BLE001
                 pass
-        # Keep login + settings in a writable place when running as an exe.
-        os.environ.setdefault("CANVAS_PROFILE_DIR", os.path.join(config_dir(), ".canvas_profile"))
+        # Frozen builds must keep login/profile in a writable absolute path.
+        # The bundled .env may carry a relative CANVAS_PROFILE_DIR, so override
+        # any missing or non-absolute value.
+        cur = os.environ.get("CANVAS_PROFILE_DIR", "")
+        if not cur or not os.path.isabs(cur):
+            os.environ["CANVAS_PROFILE_DIR"] = os.path.join(config_dir(), ".canvas_profile")
     apply_env()

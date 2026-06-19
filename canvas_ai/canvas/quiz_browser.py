@@ -158,6 +158,13 @@ def solve(
                     options = [(c, _opt_text(c)) for c in checks]
                     choice = answer_fn("multiple_answers_question", qtext, [o[1] for o in options])
                     idxs = [i for i in choice.get("indices", []) if 0 <= i < len(options)]
+                    # Clear any stale selections first so we don't union with a
+                    # previous attempt's checked boxes.
+                    for c in checks:
+                        try:
+                            c.uncheck()
+                        except Exception:  # noqa: BLE001
+                            pass
                     for i in idxs:
                         options[i][0].check()
                     (answered if idxs else skipped).append(
