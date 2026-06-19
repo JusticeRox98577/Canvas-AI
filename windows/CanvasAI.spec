@@ -58,16 +58,24 @@ binaries += pw_binaries
 hiddenimports += pw_hidden
 
 # --- the Chromium browser Playwright downloaded ---
-# `playwright install chromium` puts browsers in %LOCALAPPDATA%\ms-playwright.
-# Bundle that folder; at runtime desktop.py points PLAYWRIGHT_BROWSERS_PATH at it.
+# Prefer the clean folder build.ps1 installs into (PLAYWRIGHT_BROWSERS_PATH);
+# else the global %LOCALAPPDATA%\ms-playwright cache. Only bundle Chromium dirs
+# (skip Firefox/WebKit/old revisions) so the exe stays lean. At runtime
+# desktop.py points PLAYWRIGHT_BROWSERS_PATH at the bundled ms-playwright.
 _local = os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))
-_ms = os.path.join(_local, "ms-playwright")
+_ms = os.environ.get("PLAYWRIGHT_BROWSERS_PATH") or os.path.join(_local, "ms-playwright")
 if os.path.isdir(_ms):
-    for root, _dirs, files in os.walk(_ms):
-        for f in files:
-            full = os.path.join(root, f)
-            dest = os.path.join("ms-playwright", os.path.relpath(os.path.dirname(full), _ms))
-            datas.append((full, dest))
+    for entry in os.listdir(_ms):
+        full_entry = os.path.join(_ms, entry)
+        if not os.path.isdir(full_entry):
+            continue
+        if not entry.lower().startswith("chromium"):
+            continue  # skip firefox/webkit/ffmpeg to keep the exe small
+        for root, _dirs, files in os.walk(full_entry):
+            for f in files:
+                full = os.path.join(root, f)
+                dest = os.path.join("ms-playwright", os.path.relpath(os.path.dirname(full), _ms))
+                datas.append((full, dest))
 
 a = Analysis(
     [R("windows", "launch.py")],

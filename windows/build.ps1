@@ -15,8 +15,12 @@ if (-not (Test-Path ".venv")) {
 Write-Host "Installing build + desktop + browser dependencies..."
 pip install -e ".[web,desktop,browser,build]" | Out-Null
 
-# Make sure Chromium is present so the exe can sign you in on its own.
-Write-Host "Ensuring Chromium is installed (for login)..."
+# Install Chromium into a CLEAN, dedicated folder so the bundle only contains
+# one browser (otherwise old Chromium revisions / Firefox / WebKit in the
+# global cache bloat the exe, e.g. 337MB vs 677MB).
+$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location) "build\pw-browsers"
+if (Test-Path $env:PLAYWRIGHT_BROWSERS_PATH) { Remove-Item $env:PLAYWRIGHT_BROWSERS_PATH -Recurse -Force }
+Write-Host "Installing Chromium into a clean folder (lean bundle)..."
 python -m playwright install chromium
 
 Write-Host "Running PyInstaller (this takes a few minutes and the exe is large)..."
