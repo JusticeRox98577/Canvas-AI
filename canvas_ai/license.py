@@ -76,13 +76,22 @@ def activate(key: str) -> tuple[bool, str]:
 
 
 def is_activated() -> bool:
-    """True if not required, or if the cached key validates online (offline-tolerant)."""
+    """True if not required, or if the cached key validates online (offline-tolerant).
+
+    If a key was seeded (e.g. by the installer) but not yet activated on this
+    device, activate it first so the per-device limit is enforced.
+    """
     if not required():
         return True
     lic = _load()
     key = lic.get("key")
     if not key:
         return False
+    if not lic.get("instance_id"):
+        ok, _msg = activate(key)
+        if not ok:
+            return False
+        lic = _load()
     try:
         r = httpx.post(
             VALIDATE_URL,

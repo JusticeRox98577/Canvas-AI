@@ -40,3 +40,76 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Run]
 Filename: "{app}\CanvasAI.exe"; Description: "Launch Canvas-AI"; Flags: nowait postinstall skipifsilent
+
+[Code]
+var
+  InfoPage: TInputQueryWizardPage;
+  BrainPage: TInputOptionWizardPage;
+
+procedure InitializeWizard;
+begin
+  InfoPage := CreateInputQueryPage(wpSelectDir,
+    'Set up Canvas-AI',
+    'Enter your details. You can change all of these later in the app''s Settings.',
+    'These are saved to your Canvas-AI profile on this PC. Leave the license key blank if you don''t have one yet.');
+  InfoPage.Add('License key:', False);
+  InfoPage.Add('Canvas URL (e.g. https://yourschool.instructure.com):', False);
+
+  BrainPage := CreateInputOptionPage(InfoPage.ID,
+    'AI brain', 'Which AI should power studying?',
+    'You can change this later in Settings.', True, False);
+  BrainPage.Add('Claude  (your Claude Pro/Max subscription)');
+  BrainPage.Add('Ollama  (free, runs locally)');
+  BrainPage.Add('Anthropic  (paid API key)');
+  BrainPage.SelectedValueIndex := 0;
+end;
+
+function BrainValue(): String;
+begin
+  if BrainPage.SelectedValueIndex = 1 then
+    Result := 'ollama'
+  else if BrainPage.SelectedValueIndex = 2 then
+    Result := 'anthropic'
+  else
+    Result := 'claude_code';
+end;
+
+function JsonEscape(const S: String): String;
+var
+  R: String;
+begin
+  R := S;
+  StringChangeEx(R, '\', '\\', True);
+  StringChangeEx(R, '"', '\"', True);
+  Result := R;
+end;
+
+procedure WriteUserConfig();
+var
+  Dir, SFile, LFile, Url, Key, Brain: String;
+begin
+  Dir := ExpandConstant('{userappdata}\Canvas-AI');
+  ForceDirectories(Dir);
+  Key := Trim(InfoPage.Values[0]);
+  Url := Trim(InfoPage.Values[1]);
+  Brain := BrainValue();
+
+  SFile := Dir + '\settings.json';
+  if not FileExists(SFile) then
+    SaveStringToFile(SFile,
+      '{' + #13#10 +
+      '  "canvas_base_url": "' + JsonEscape(Url) + '",' + #13#10 +
+      '  "llm_provider": "' + Brain + '",' + #13#10 +
+      '  "draft_provider": "' + Brain + '"' + #13#10 +
+      '}', False);
+
+  LFile := Dir + '\license.json';
+  if (Key <> '') and (not FileExists(LFile)) then
+    SaveStringToFile(LFile, '{ "key": "' + JsonEscape(Key) + '" }', False);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    WriteUserConfig();
+end;
