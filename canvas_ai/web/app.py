@@ -222,6 +222,12 @@ def setup_claude_login() -> dict:
 def setup_canvas_login() -> dict:
     from canvas_ai.browser.session import interactive_login
 
+    if not _config.canvas_base_url:
+        raise HTTPException(
+            status_code=400,
+            detail="Set your Canvas URL first (e.g. https://yourschool.instructure.com).",
+        )
+
     def go():
         try:
             interactive_login(_config)

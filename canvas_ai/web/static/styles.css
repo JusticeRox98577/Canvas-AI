@@ -197,3 +197,26 @@ button:disabled { opacity: .5; cursor: default; filter: none; }
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
 *::-webkit-scrollbar-thumb:hover { background: var(--faint); background-clip: padding-box; }
+
+/* ---- first-run wizard ---- */
+.wizard {
+  position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 24px;
+  background:
+    radial-gradient(900px 500px at 80% -10%, rgba(139,92,246,.18), transparent 60%),
+    radial-gradient(700px 500px at -10% 0%, rgba(99,102,241,.18), transparent 55%),
+    rgba(4,6,10,.92);
+  backdrop-filter: blur(6px);
+}
+.wizard-card { width: 560px; max-width: 94vw; background: var(--panel); border: 1px solid var(--border2); border-radius: 18px; padding: 30px; box-shadow: var(--shadow); }
+.wizard-logo { width: 56px; height: 56px; border-radius: 15px; background: url("/favicon.png") center/cover no-repeat; margin: 0 auto 16px; box-shadow: 0 4px 16px rgba(124,58,237,.45); }
+.wizard h2 { margin: 0 0 6px; text-align: center; font-size: 23px; }
+.wizard .sub { color: var(--muted); text-align: center; margin: 0 auto 18px; max-width: 420px; }
+.wizard .field { margin: 12px 0; }
+.wizard .field label { display: block; font-weight: 700; margin-bottom: 6px; }
+.wizard .hint { color: var(--muted); font-size: 13px; margin-top: 8px; }
+.wizard .nav { display: flex; justify-content: space-between; gap: 10px; margin-top: 24px; }
+.wizard .dots { display: flex; gap: 7px; justify-content: center; margin-top: 20px; }
+.wizard .dots .d { width: 8px; height: 8px; border-radius: 999px; background: var(--border2); transition: width .2s, background .2s; }
+.wizard .dots .d.on { width: 22px; background: var(--accent); }
+.wizard .skip { display: block; text-align: center; margin-top: 14px; color: var(--faint); font-size: 12px; cursor: pointer; }
+.wizard .skip:hover { color: var(--muted); }

@@ -52,11 +52,11 @@ async function init() {
   document.querySelectorAll(".tabs button").forEach((b) => {
     b.onclick = () => switchTab(b.dataset.tab, b);
   });
-  // First-run: if Claude Code or Canvas sign-in is missing, open Setup.
+  // First run: if anything's unconfigured, launch the guided setup wizard.
   try {
     const st = await api("/api/setup/status");
-    if (!st.brain_ready || !st.canvas_authenticated) {
-      switchTab("setup");
+    if (!st.brain_ready || !st.canvas_base_url || !st.canvas_authenticated) {
+      wizStep = 0; showOnboarding();
     }
   } catch { /* ignore */ }
 
@@ -212,19 +212,40 @@ async function loadSetup() {
     step(s.anthropic_key_set, "Anthropic API key", body);
   }
 
-  // 2. Canvas URL
+  // 2. Canvas URL — set it right here (sign-in needs it first)
   const urlBody = el("div");
-  urlBody.appendChild(el("p", "muted", "Current: " + escapeHtml(s.canvas_base_url || "(not set)") + " — change it in the Settings tab."));
+  urlBody.appendChild(el("p", "muted", "Current: " + escapeHtml(s.canvas_base_url || "(not set)")));
+  const urlInput = el("input"); urlInput.placeholder = "https://yourschool.instructure.com"; urlInput.value = s.canvas_base_url || "";
+  urlBody.appendChild(urlInput);
+  const urlRow = el("div", "row");
+  const urlSave = el("button", "primary", "Save URL");
+  const urlMsg = el("span", "muted", "");
+  urlSave.onclick = async () => {
+    const v = urlInput.value.trim();
+    if (!/^https?:\/\//.test(v)) { urlMsg.textContent = "Enter a full URL starting with https://"; return; }
+    urlSave.disabled = true; urlMsg.textContent = "Saving…";
+    try { await api("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ canvas_base_url: v }) }); loadSetup(); }
+    catch (e) { urlMsg.textContent = e.message; }
+    urlSave.disabled = false;
+  };
+  urlRow.appendChild(urlSave); urlRow.appendChild(urlMsg); urlBody.appendChild(urlRow);
   step(!!s.canvas_base_url, "Your Canvas URL", urlBody);
 
-  // 3. Canvas sign-in
+  // 3. Canvas sign-in (needs a URL first)
   const cbody = el("div");
-  if (!s.canvas_authenticated) {
-    const cb = el("button", "primary", "Sign in to Canvas");
-    cb.onclick = async () => { try { await api("/api/setup/canvas_login", { method: "POST" }); alert("A browser window opened — sign in to your school. Then re-check."); } catch (e) { alert(e.message); } };
-    cbody.appendChild(cb);
-  } else {
+  if (s.canvas_authenticated) {
     cbody.appendChild(el("p", "muted", "Signed in to Canvas."));
+  } else if (!s.canvas_base_url) {
+    cbody.appendChild(el("p", "muted", "Set your Canvas URL above first, then sign in."));
+  } else {
+    const cb = el("button", "primary", "Sign in to Canvas");
+    cb.onclick = async () => {
+      cb.disabled = true; cb.textContent = "Opening sign-in…";
+      try { await api("/api/setup/canvas_login", { method: "POST" }); alert("A browser window is opening — sign in to your school, then click Re-check."); }
+      catch (e) { alert(e.message); }
+      cb.disabled = false; cb.textContent = "Sign in to Canvas";
+    };
+    cbody.appendChild(cb);
   }
   step(s.canvas_authenticated, "Canvas sign-in", cbody);
 
@@ -760,6 +781,143 @@ function showUpdateBanner(u) {
   b.innerHTML = `Update available: v${escapeHtml(u.latest)} (you have v${escapeHtml(u.current)}). ` +
     (u.url ? `<a href="${escapeHtml(u.url)}" target="_blank">Download ↗</a>` : "");
   document.querySelector("header").insertAdjacentElement("afterend", b);
+}
+
+// ---- first-run setup wizard ----
+let wizStep = 0;
+function closeOnboarding() { const o = document.getElementById("wizard"); if (o) o.remove(); }
+
+async function showOnboarding() {
+  let s; try { s = await api("/api/setup/status"); } catch { s = {}; }
+  let o = document.getElementById("wizard");
+  if (!o) { o = el("div", "wizard"); o.id = "wizard"; document.body.appendChild(o); }
+  o.innerHTML = "";
+  const card = el("div", "wizard-card");
+  card.appendChild(el("div", "wizard-logo"));
+  const steps = [stepWelcome, stepBrain, stepUrl, stepSignin, stepDone];
+  wizStep = Math.max(0, Math.min(wizStep, steps.length - 1));
+  steps[wizStep](card, s);
+  const dots = el("div", "dots");
+  steps.forEach((_, i) => dots.appendChild(el("span", "d" + (i === wizStep ? " on" : ""))));
+  card.appendChild(dots);
+  if (wizStep < steps.length - 1) {
+    const skip = el("div", "skip", "Skip for now — finish later in Settings");
+    skip.onclick = closeOnboarding;
+    card.appendChild(skip);
+  }
+  o.appendChild(card);
+}
+
+function wizNav(card, opts) {
+  opts = opts || {};
+  const nav = el("div", "nav");
+  const back = el("button", "ghost", "Back");
+  if (wizStep === 0) back.style.visibility = "hidden";
+  back.onclick = () => { wizStep--; showOnboarding(); };
+  const next = el("button", "primary", opts.nextLabel || "Next");
+  next.onclick = opts.onNext || (() => { wizStep++; showOnboarding(); });
+  nav.appendChild(back); nav.appendChild(next);
+  card.appendChild(nav);
+}
+
+function stepWelcome(card) {
+  card.appendChild(el("h2", null, "Welcome to Canvas-AI"));
+  card.appendChild(el("p", "sub", "Let's get you set up — about a minute. You can change anything later in Settings."));
+  wizNav(card, { nextLabel: "Get started" });
+}
+
+function stepBrain(card, s) {
+  card.appendChild(el("h2", null, "Choose your AI"));
+  card.appendChild(el("p", "sub", "Powers studying and chat. Claude uses your subscription · Ollama is free + local · Anthropic uses a paid API key."));
+  const f = el("div", "field");
+  const sel = selectEl(["claude_code", "ollama", "anthropic"], s.llm_provider);
+  sel.onchange = async () => {
+    try { await api("/api/setup/provider", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: sel.value }) }); appConfig = await api("/api/config"); showOnboarding(); }
+    catch (e) { alert(e.message); }
+  };
+  f.appendChild(sel); card.appendChild(f);
+
+  if (s.llm_provider === "claude_code") {
+    if (!s.claude_installed && s.platform === "win32") {
+      const b = el("button", "ghost", "Install Claude Code");
+      b.onclick = async () => { b.disabled = true; b.textContent = "Installing… (a minute or two)"; try { await api("/api/setup/install_claude", { method: "POST" }); } catch (e) { alert(e.message); } setTimeout(showOnboarding, 1500); };
+      card.appendChild(b);
+    }
+    const lb = el("button", "ghost", "Log in to Claude");
+    lb.onclick = async () => { try { await api("/api/setup/claude_login", { method: "POST" }); alert("Finish the Claude login in the window that opened (choose Subscription)."); } catch (e) { alert(e.message); } };
+    card.appendChild(lb);
+    card.appendChild(el("p", "hint", s.claude_installed ? "Claude Code is installed ✓" : "Claude Code isn't installed yet."));
+  } else if (s.llm_provider === "ollama") {
+    if (!s.ollama_running && s.platform === "win32") {
+      const b = el("button", "ghost", "Install Ollama + model");
+      b.onclick = async () => { b.disabled = true; b.textContent = "Installing… (can take a while)"; try { await api("/api/setup/install_ollama", { method: "POST" }); } catch (e) { alert(e.message); } setTimeout(showOnboarding, 1500); };
+      card.appendChild(b);
+    }
+    card.appendChild(el("p", "hint", s.ollama_running ? "Ollama is running ✓" : "Ollama isn't running yet."));
+  } else if (s.llm_provider === "anthropic") {
+    const f2 = el("div", "field");
+    const key = el("input"); key.type = "password"; key.placeholder = s.anthropic_key_set ? "key saved — paste to replace" : "sk-ant-…";
+    f2.appendChild(el("label", null, "Anthropic API key")); f2.appendChild(key);
+    const sb = el("button", "ghost", "Save key");
+    sb.onclick = async () => { if (!key.value.trim()) return; sb.disabled = true; try { await api("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ anthropic_api_key: key.value.trim() }) }); showOnboarding(); } catch (e) { alert(e.message); } };
+    f2.appendChild(sb); card.appendChild(f2);
+  }
+  wizNav(card, {});
+}
+
+function stepUrl(card, s) {
+  card.appendChild(el("h2", null, "Your Canvas URL"));
+  card.appendChild(el("p", "sub", "The address you use for Canvas, like https://yourschool.instructure.com"));
+  const f = el("div", "field");
+  const inp = el("input"); inp.placeholder = "https://yourschool.instructure.com"; inp.value = s.canvas_base_url || "";
+  f.appendChild(inp); card.appendChild(f);
+  const msg = el("p", "hint", "");
+  card.appendChild(msg);
+  wizNav(card, { nextLabel: "Save & continue", onNext: async () => {
+    const v = inp.value.trim();
+    if (!/^https?:\/\//.test(v)) { msg.textContent = "Enter a full URL starting with https://"; return; }
+    try { await api("/api/settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ canvas_base_url: v }) }); appConfig = await api("/api/config"); wizStep++; showOnboarding(); }
+    catch (e) { msg.textContent = e.message; }
+  } });
+}
+
+function stepSignin(card, s) {
+  card.appendChild(el("h2", null, "Sign in to Canvas"));
+  if (s.canvas_authenticated) {
+    card.appendChild(el("p", "sub", "You're signed in to Canvas ✓"));
+    wizNav(card, { nextLabel: "Continue" });
+    return;
+  }
+  if (!s.canvas_base_url) {
+    card.appendChild(el("p", "sub", "Set your Canvas URL first — go Back."));
+    wizNav(card, {});
+    return;
+  }
+  card.appendChild(el("p", "sub", "A browser window opens — sign in to your school (including any Microsoft/Google login). Then click ‘I've signed in’."));
+  const open = el("button", "primary", "Open Canvas sign-in");
+  open.onclick = async () => { try { await api("/api/setup/canvas_login", { method: "POST" }); } catch (e) { alert(e.message); } };
+  card.appendChild(open);
+  const nav = el("div", "nav");
+  const back = el("button", "ghost", "Back"); back.onclick = () => { wizStep--; showOnboarding(); };
+  const chk = el("button", "ghost", "I've signed in — check"); chk.onclick = () => showOnboarding();
+  nav.appendChild(back); nav.appendChild(chk);
+  card.appendChild(nav);
+}
+
+function stepDone(card, s) {
+  card.appendChild(el("h2", null, "You're all set 🎉"));
+  const issues = [];
+  if (!s.brain_ready) issues.push("finish your AI brain");
+  if (!s.canvas_base_url) issues.push("set your Canvas URL");
+  if (!s.canvas_authenticated) issues.push("sign in to Canvas");
+  card.appendChild(el("p", "sub", issues.length
+    ? "Still to do (you can finish these in Settings): " + issues.join(", ") + "."
+    : "Everything's connected. Open the Study tab to begin."));
+  const nav = el("div", "nav");
+  const back = el("button", "ghost", "Back"); back.onclick = () => { wizStep--; showOnboarding(); };
+  const done = el("button", "primary", "Open Canvas-AI"); done.onclick = () => { closeOnboarding(); location.reload(); };
+  nav.appendChild(back); nav.appendChild(done);
+  card.appendChild(nav);
 }
 
 // ---- utils ----
