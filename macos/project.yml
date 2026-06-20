@@ -1,0 +1,28 @@
+# XcodeGen project for the native macOS app.
+# One-time:  brew install xcodegen
+# Generate:  cd macos && xcodegen generate && open CanvasAI.xcodeproj
+name: CanvasAI
+options:
+  bundleIdPrefix: com.canvasai
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+targets:
+  CanvasAI:
+    type: application
+    platform: macOS
+    sources:
+      - CanvasAI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.canvasai.studyapp
+        PRODUCT_NAME: Canvas-AI
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_ENTITLEMENTS: CanvasAI/CanvasAI.entitlements
+        SWIFT_VERSION: "5.0"
+        INFOPLIST_KEY_CFBundleDisplayName: Canvas-AI
+        INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.education"
+        INFOPLIST_KEY_NSHumanReadableCopyright: "© Canvas-AI"
